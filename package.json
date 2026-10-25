@@ -6,14 +6,19 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "seed": "node scripts/seed.mjs",
     "demo:clear": "node scripts/clear-demo.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
-    "db:backup": "node scripts/backup-db.mjs",
+    "db:backup": "node scripts/backup.mjs",
+    "db:restore": "node scripts/restore.mjs",
+    "email:retry": "node scripts/retry-failed-emails.mjs",
     "test": "tsx --test tests/*.test.ts",
     "screenshots": "node scripts/take-screenshots.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

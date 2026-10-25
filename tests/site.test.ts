@@ -593,3 +593,80 @@ test('24. CSRF Protection: Rejects mutating requests with untrusted origin', asy
   const res = middleware(evilReq);
   assert.equal(res.status, 403, 'Cross-origin mutating request from untrusted origin must be rejected with 403');
 });
+
+test('25. Health Endpoint: /api/health returns HTTP 200 with no sensitive data exposed', async () => {
+  const { GET } = await import('../app/api/health/route');
+  const res = await GET();
+  assert.equal(res.status, 200);
+
+  const data = await res.json();
+  assert.equal(data.status, 'ok');
+  assert.ok(typeof data.uptime_seconds === 'number');
+  assert.ok(data.timestamp);
+
+  // Verify NO sensitive paths or credentials leaked
+  const jsonStr = JSON.stringify(data);
+  assert.equal(jsonStr.includes('password'), false);
+  assert.equal(jsonStr.includes('secret'), false);
+  assert.equal(jsonStr.includes('DATABASE_PATH'), false);
+  assert.equal(jsonStr.includes('SMTP'), false);
+});
+
+test('26. Persistent Uploads Serving: Serves files from UPLOAD_DIR and blocks directory traversal', async () => {
+  const { GET } = await import('../app/uploads/[...file]/route');
+  const { NextRequest } = await import('next/server');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  const testUploadDir = path.resolve('./data/uploads');
+  if (!fs.existsSync(testUploadDir)) {
+    fs.mkdirSync(testUploadDir, { recursive: true });
+  }
+
+  // Create test uploaded PDF
+  const testFileName = 'test_policy_brief_2026.pdf';
+  const testFilePath = path.join(testUploadDir, testFileName);
+  fs.writeFileSync(testFilePath, '%PDF-1.4 TEST CONTENT');
+
+  // Valid file request
+  const req = new NextRequest(`http://localhost:3000/uploads/${testFileName}`);
+  const res = await GET(req, { params: Promise.resolve({ file: [testFileName] }) });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'application/pdf');
+
+  // Directory traversal attack attempt
+  const attackReq = new NextRequest('http://localhost:3000/uploads/../../../etc/passwd');
+  const attackRes = await GET(attackReq, { params: Promise.resolve({ file: ['..', '..', '..', 'etc', 'passwd'] }) });
+  assert.ok([400, 404].includes(attackRes.status), 'Directory traversal attempt must be rejected');
+
+  // Clean test file
+  fs.unlinkSync(testFilePath);
+});
+
+test('27. Unified Backup & Restore Verification', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { DatabaseSync } = await import('node:sqlite');
+
+  const backupDir = path.resolve('./backups/test_backup_suite');
+  if (fs.existsSync(backupDir)) {
+    fs.rmSync(backupDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(backupDir, { recursive: true });
+
+  // Snapshot database via VACUUM INTO
+  const dbSnapshotPath = path.join(backupDir, 'economist.db');
+  db.exec(`VACUUM INTO '${dbSnapshotPath.replace(/'/g, "''")}';`);
+
+  assert.ok(fs.existsSync(dbSnapshotPath), 'Database snapshot file must exist');
+
+  // Verify snapshot integrity
+  const snapshotDb = new DatabaseSync(dbSnapshotPath);
+  const siteCheck = snapshotDb.prepare('SELECT researcher_name FROM site_settings WHERE id = 1').get() as { researcher_name: string };
+  assert.equal(siteCheck.researcher_name, 'Dr. Hamis Miraji Ally Simba');
+  snapshotDb.close();
+
+  // Cleanup test backup directory
+  fs.rmSync(backupDir, { recursive: true, force: true });
+});

@@ -65,7 +65,7 @@ export function middleware(request: NextRequest) {
     } else if (pathname === '/login') {
       // /login on admin subdomain maps to /admin/login
       return NextResponse.rewrite(new URL(`/admin/login${search}`, request.url));
-    } else if (!pathname.startsWith('/admin')) {
+    } else if (!pathname.startsWith('/admin') && pathname !== '/health') {
       // Direct subpaths like /bookings, /profile, /insights on admin subdomain
       const rewrittenPath = `/admin${pathname}`;
       return handleAdminAuth(request, rewrittenPath);

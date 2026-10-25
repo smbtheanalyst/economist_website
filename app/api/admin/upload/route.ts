@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const uploadDir = path.resolve(process.env.UPLOAD_DIR || './public/uploads');
+    const uploadDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
