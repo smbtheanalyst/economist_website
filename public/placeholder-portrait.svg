@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E9EDE4" />
+      <stop offset="100%" stop-color="#DCE3D7" />
+    </linearGradient>
+    <linearGradient id="figure" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#285748" />
+      <stop offset="100%" stop-color="#16332a" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="750" fill="url(#bg)" />
+  <g fill="none" stroke="#D9DCD2" stroke-width="1.5">
+    <rect x="24" y="24" width="552" height="702" />
+    <rect x="36" y="36" width="528" height="678" />
+  </g>
+  <g fill="url(#figure)">
+    <!-- Stylized Academic Portrait Silhouette -->
+    <circle cx="300" cy="280" r="110" />
+    <path d="M140 640 C140 470, 210 420, 300 420 C390 420, 460 470, 460 640 Z" />
+  </g>
+  <text x="300" y="685" font-family="Georgia, serif" font-size="14" fill="#52605A" text-anchor="middle" letter-spacing="2">PORTRAIT PLACEHOLDER</text>
+</svg>
