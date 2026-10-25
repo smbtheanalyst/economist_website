@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Calendar, BookOpen, Compass } from 'lucide-react';
+import { Menu, X, Calendar } from 'lucide-react';
 
 interface HeaderProps {
   researcherName: string;
@@ -17,8 +17,8 @@ export default function Header({ researcherName, professionalTitle }: HeaderProp
   const navLinks = [
     { label: 'Ideas & Insights', href: '/insights' },
     { label: 'Research & Publications', href: '/research' },
-    { label: 'Tanzania Events', href: '/events' },
-    { label: 'About', href: '/about' },
+    { label: 'Events in Tanzania', href: '/events' },
+    { label: 'About & CV', href: '/about' },
     { label: 'Ask a Question', href: '/ask' },
   ];
 
@@ -30,20 +30,32 @@ export default function Header({ researcherName, professionalTitle }: HeaderProp
 
   return (
     <header className="border-b border-[#D9DCD2] bg-[#F7F5EF] sticky top-0 z-40 transition-colors">
-      {/* Top micro bar for editorial dateline */}
+      {/* Top micro bar for corporate identity & dateline */}
       <div className="border-b border-[#E9EDE4] px-4 sm:px-8 py-1.5 text-xs text-[#52605A] flex justify-between items-center max-w-7xl mx-auto">
-        <span>Economic Research & Policy Analysis • Dar es Salaam, Tanzania</span>
-        <span className="hidden sm:inline">Africa/Dar_es_Salaam (EAT, UTC+3)</span>
+        <span className="font-medium text-[#285748]">
+          Tanzania Economic and Financial Policy Consultancy (TEFPC)
+        </span>
+        <span className="hidden sm:inline">
+          tefpc.or.tz • Dar es Salaam (EAT, UTC+3)
+        </span>
       </div>
 
       {/* Main Masthead */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-5 flex items-center justify-between gap-4">
         <div>
           <Link href="/" className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#285748]">
-            <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-[#192B2A] group-hover:text-[#285748] transition-colors">
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#285748] group-hover:text-[#1e4337] transition-colors">
+                TEFPC
+              </span>
+              <span className="hidden md:inline text-xs text-[#52605A] font-light border-l border-[#D9DCD2] pl-2 uppercase tracking-wider">
+                Economic & Financial Policy
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#192B2A] font-serif font-medium mt-0.5">
               {researcherName}
-            </h1>
-            <p className="text-xs sm:text-sm text-[#52605A] font-sans mt-0.5 tracking-wide">
+            </p>
+            <p className="text-[11px] text-[#52605A] font-sans tracking-wide">
               {professionalTitle}
             </p>
           </Link>

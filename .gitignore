@@ -26,6 +26,10 @@ yarn-error.log*
 .env*.local
 .env
 
+# private source documents containing confidential referee contacts
+/docs/
+
+
 # SQLite databases & temp files
 *.db
 *.db-journal

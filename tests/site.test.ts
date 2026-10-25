@@ -23,10 +23,10 @@ test('1. Profile Settings: Admin updates profile and public page reflects saved 
   assert.equal(settings.researcher_name, testName);
   assert.equal(settings.professional_title, testTitle);
 
-  // Revert back to demonstration name
+  // Revert back to researcher name
   db.prepare(`
     UPDATE site_settings
-    SET researcher_name = 'Dr. Juma M. Mwangi', professional_title = 'Senior Economic Researcher & Policy Analyst'
+    SET researcher_name = 'Dr. Hamis Mirai Ally Simba', professional_title = 'Economist · Researcher · Consultant'
     WHERE id = 1
   `).run();
 });

@@ -12,11 +12,20 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Identity & Office */}
           <div className="md:col-span-2 space-y-4">
-            <h3 className="font-serif text-2xl font-medium text-[#192B2A]">
+            <div>
+              <span className="font-serif text-2xl font-bold text-[#285748]">
+                TEFPC
+              </span>
+              <p className="text-xs uppercase tracking-wider text-[#52605A] font-medium mt-0.5">
+                Tanzania Economic and Financial Policy Consultancy
+              </p>
+            </div>
+
+            <p className="font-serif text-lg text-[#192B2A]">
               {settings.researcher_name}
-            </h3>
+            </p>
             <p className="text-sm text-[#52605A] max-w-md leading-relaxed">
-              {settings.professional_title}. Independent economic research, applied policy modeling, and regional trade analysis for Tanzania and East Africa.
+              {settings.professional_title}. Applied macroeconomic analysis, econometrics, trade facilitation, and public policy consulting.
             </p>
 
             <div className="pt-2 space-y-2 text-sm text-[#52605A]">
@@ -65,7 +74,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
           {/* Advisory & Engagement */}
           <div className="space-y-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[#285748]">
-              Consultation & Inquiries
+              Consultancy & Inquiries
             </h4>
             <ul className="space-y-2 text-sm text-[#52605A]">
               <li>
@@ -86,7 +95,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
               <li>
                 <Link href="/admin/login" className="hover:text-[#285748] text-xs opacity-75 inline-flex items-center gap-1">
                   <Shield className="w-3 h-3" />
-                  <span>Researcher Administration</span>
+                  <span>Consultancy Administration</span>
                 </Link>
               </li>
             </ul>
@@ -116,10 +125,10 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
         {/* Bottom Rule & Disclaimer */}
         <div className="border-t border-[#D9DCD2] mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center text-xs text-[#52605A] gap-4">
           <p>
-            © {new Date().getFullYear()} {settings.researcher_name}. All economic analyses and publications are published for academic and policy discourse.
+            © {new Date().getFullYear()} Tanzania Economic and Financial Policy Consultancy (TEFPC).
           </p>
           <p>
-            Timezone: Africa/Dar_es_Salaam (EAT, UTC+3)
+            Domain: tefpc.or.tz • Timezone: Africa/Dar_es_Salaam (EAT, UTC+3)
           </p>
         </div>
       </div>

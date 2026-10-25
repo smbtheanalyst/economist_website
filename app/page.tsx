@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, BookOpen, Calendar, HelpCircle, FileText, CheckCircle2, ChevronRight, MapPin } from 'lucide-react';
 import { getSiteSettings, getPublishedInsights, getPublishedResearch, getEvents } from '@/lib/data';
 import SubscribeForm from '@/components/SubscribeForm';
@@ -21,8 +20,8 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Hero Text */}
           <div className="lg:col-span-8 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-[#E9EDE4] text-[#285748] border border-[#DCE3D7]">
-              <span>Tanzania & East Africa Macroeconomic Research</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#E9EDE4] text-[#285748] border border-[#DCE3D7]">
+              <span>Tanzania Economic and Financial Policy Consultancy (TEFPC)</span>
             </div>
 
             <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[#192B2A] leading-[1.15] whitespace-pre-line">
@@ -32,6 +31,15 @@ export default function HomePage() {
             <p className="text-lg sm:text-xl text-[#52605A] leading-relaxed max-w-2xl font-light">
               {settings.hero_intro}
             </p>
+
+            <div className="pt-1">
+              <p className="font-serif text-lg font-medium text-[#192B2A]">
+                {settings.researcher_name}
+              </p>
+              <p className="text-sm text-[#52605A] font-sans">
+                {settings.professional_title}
+              </p>
+            </div>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link
@@ -52,36 +60,28 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Portrait & Identity Card */}
+          {/* Portrait & Identity Card (Prominently featuring real photograph) */}
           <div className="lg:col-span-4">
             <div className="bg-[#E9EDE4] border border-[#D9DCD2] p-5 rounded-sm space-y-4">
-              <div className="relative w-full aspect-[4/5] bg-[#DCE3D7] rounded-sm overflow-hidden border border-[#D9DCD2]">
-                {settings.portrait_url ? (
-                  <img
-                    src={settings.portrait_url}
-                    alt={settings.researcher_name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-[#52605A]">
-                    <div className="w-20 h-20 rounded-full bg-[#E9EDE4] flex items-center justify-center mb-3">
-                      <span className="font-serif text-2xl font-semibold text-[#285748]">
-                        {settings.researcher_name.charAt(0)}
-                      </span>
-                    </div>
-                    <p className="font-serif text-sm font-medium text-[#192B2A]">{settings.researcher_name}</p>
-                    <p className="text-xs text-[#52605A] mt-1">{settings.professional_title}</p>
-                  </div>
-                )}
+              <div className="relative w-full aspect-[4/5] bg-[#DCE3D7] rounded-sm overflow-hidden border border-[#D9DCD2] shadow-sm">
+                <img
+                  src={settings.portrait_url || '/portrait-dr-hamis-simba-card.jpg'}
+                  alt={settings.researcher_name}
+                  className="w-full h-full object-cover object-top"
+                />
               </div>
 
               <div className="space-y-1">
-                <p className="font-serif text-lg font-medium text-[#192B2A]">{settings.researcher_name}</p>
-                <p className="text-xs text-[#52605A] leading-snug">{settings.professional_title}</p>
+                <p className="font-serif text-lg font-medium text-[#192B2A] leading-snug">
+                  {settings.researcher_name}
+                </p>
+                <p className="text-xs text-[#52605A] leading-snug">
+                  {settings.professional_title}
+                </p>
               </div>
 
               <div className="border-t border-[#D9DCD2] pt-3 text-xs text-[#52605A] flex items-center justify-between">
-                <span>Dar es Salaam, Tanzania</span>
+                <span>Posta, Dar es Salaam</span>
                 <Link href="/about" className="text-[#285748] font-medium hover:underline inline-flex items-center gap-1">
                   Full Bio & CV <ArrowRight className="w-3 h-3" />
                 </Link>
@@ -279,7 +279,7 @@ export default function HomePage() {
                       : 'bg-[#DCE3D7] text-[#192B2A]'
                   }`}
                 >
-                  {evt.is_organized_by_me ? 'Organized by Researcher' : 'Third-Party Event'}
+                  {evt.is_organized_by_me ? 'Organized by TEFPC' : 'Third-Party Event'}
                 </span>
                 <span className="text-[#52605A]">
                   {new Date(evt.start_time).toLocaleDateString('en-GB', {
@@ -330,10 +330,10 @@ export default function HomePage() {
               <Calendar className="w-5 h-5" />
             </div>
             <h3 className="font-serif text-2xl font-medium text-[#192B2A]">
-              Consultations & Academic Advisory
+              Consultations & Advisory Sessions
             </h3>
             <p className="text-sm text-[#52605A] leading-relaxed">
-              Book one-on-one sessions for PhD research mentorship, macroeconomic policy analysis, or private sector executive briefings. Available online via secure video or in-person at the Dar es Salaam office.
+              Book dedicated advisory sessions for econometric modeling, macroeconomic policy analysis, or graduate research mentorship. Available online via private video or in-person at the TEFPC office at Rita Tower, Posta, Dar es Salaam.
             </p>
             <ul className="text-xs text-[#52605A] space-y-1.5 pt-1">
               <li className="flex items-center gap-2">
@@ -342,7 +342,7 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#285748]" />
-                <span>Guaranteed conflict-free scheduling with instant reservation</span>
+                <span>Instant reservation with transactional conflict prevention</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#285748]" />
@@ -372,7 +372,7 @@ export default function HomePage() {
               Ask a Question
             </h3>
             <p className="text-sm text-[#52605A] leading-relaxed">
-              Have an academic inquiry about Tanzanian economic indicators, public debt data, or regional trade trends? Inquiries are read directly by the researcher and answered subject to schedule.
+              Have a research inquiry regarding Tanzanian public policy, econometric frameworks, energy markets, or AfCFTA trade logistics? Questions are read directly by the researcher.
             </p>
             <p className="text-xs text-[#718079] italic">
               Note: Submitting an inquiry does not guarantee an immediate or detailed consultation. For structured one-on-one advisory, please book a consultation.
