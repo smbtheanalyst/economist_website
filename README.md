@@ -8,8 +8,12 @@ Built to present his professional identity, publish economic ideas & empirical r
 
 ## 1. System Architecture & Engineering Decisions
 
-### Tech Stack
-- **Framework:** Next.js 15 (App Router, Server-Side Rendering, Server Actions, Route Handlers, React 19).
+### Production Domain & Subdomain Architecture
+- **Public Website:** `https://tefpc.or.tz`
+- **Admin Portal:** `https://admin.tefpc.or.tz`
+- **Host-Aware Next.js Middleware:** Single unified application automatically routes requests based on hostname. Requests to `/admin` or `/admin/*` on the public domain receive a 308 permanent redirect to `https://admin.tefpc.or.tz/admin...`, preserving route and search parameters. On `admin.tefpc.or.tz`, the root `/` routes directly to the admin dashboard, while local development access is preserved at `http://localhost:3000/admin`.
+- **Host-Only Cookies (RFC 6265):** Admin session cookies omit the `Domain` attribute, binding them strictly to `admin.tefpc.or.tz` so they are never leaked to the public apex domain or other subdomains.
+- **CSRF Protection:** All mutating actions (`POST`, `PUT`, `DELETE`, `PATCH`) validate the HTTP `Origin` header against permitted hostnames.
 - **Styling & Editorial Design:** Tailwind CSS with the approved editorial palette:
   - Warm cream background: `#F7F5EF`
   - Deep green primary: `#285748`
@@ -132,22 +136,52 @@ Log in at `http://localhost:3000/admin/login` using your bootstrapped credential
 
 ---
 
-## 6. Production Deployment Checklist
+## 6. Required DNS & Hosting Configuration
 
-Before deploying publicly:
-1. **Domain & SSL/HTTPS:** Configure domain DNS (A / CNAME records) pointing to your production host and ensure HTTPS is active.
-2. **Environment Variables:**
-   - Set `NODE_ENV=production`.
-   - Set `SITE_URL=https://your-custom-domain.tz`.
-   - Set `ADMIN_SESSION_SECRET` to a random 64-character secret.
-   - Configure live SMTP credentials:
-     - `SMTP_HOST=smtp.mailprovider.com`
-     - `SMTP_PORT=587`
-     - `SMTP_USER=user@domain.tz`
-     - `SMTP_PASS=secure-password`
-     - `SMTP_FROM="Dr. [Name] <contact@domain.tz>"`
-3. **Persistent File Storage:** Ensure the upload directory (`UPLOAD_DIR=./public/uploads`) and SQLite database directory (`./data`) reside on persistent storage or a mounted volume.
-4. **Purge Demo Data:** Run `npm run demo:clear` or use the Admin Demo Data panel to remove demonstration articles and reset placeholders.
-5. **Upload Official Assets:** Upload official portrait photograph and official Curriculum Vitae (PDF) in Admin Profile settings.
-6. **Legal & Privacy Review:** Review `/privacy` with local legal counsel under the Tanzania Personal Data Protection Act (PDPA 2022).
-7. **Database Backups:** Schedule regular backups of `./data/economist.db` using SQLite VACUUM INTO or file snapshots.
+Before pointing production DNS to `tefpc.or.tz`, configure the following:
+
+### 1. DNS Records Setup
+
+| Record Type | Host / Name | Value / Destination | Description |
+|---|---|---|---|
+| **A** | `@` (or `tefpc.or.tz.`) | `<YOUR_SERVER_IP>` | Points public apex domain to application server |
+| **CNAME** | `www` | `tefpc.or.tz.` | Points www to apex domain |
+| **CNAME** (or A) | `admin` | `tefpc.or.tz.` (or `<YOUR_SERVER_IP>`) | Points admin subdomain to same application |
+
+### 2. SSL/TLS Certificate Requirement
+Deploy an SSL/TLS certificate (e.g. Let's Encrypt / Certbot):
+- Wildcard certificate: `*.tefpc.or.tz` + `tefpc.or.tz`
+- Or SAN certificate: `tefpc.or.tz`, `www.tefpc.or.tz`, and `admin.tefpc.or.tz`
+
+### 3. Reverse Proxy Setup (NGINX Example)
+Ensure your reverse proxy forwards `Host` and `X-Forwarded-Host` headers to Next.js on port 3000:
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name tefpc.or.tz www.tefpc.or.tz admin.tefpc.or.tz;
+
+    ssl_certificate /etc/letsencrypt/live/tefpc.or.tz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tefpc.or.tz/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+}
+```
+
+### 4. Production Environment Variables
+In `.env` on production:
+- `NODE_ENV=production`
+- `SITE_URL=https://tefpc.or.tz`
+- `ADMIN_ORIGIN=https://admin.tefpc.or.tz`
+- `ADMIN_HOST=admin.tefpc.or.tz`
+- `SMTP_HOST=...`
+- `SMTP_PORT=...`
+- `SMTP_USER=...`
+- `SMTP_PASS=...`
+- `SMTP_FROM="TEFPC Notifications <noreply@tefpc.or.tz>"`

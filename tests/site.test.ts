@@ -496,3 +496,100 @@ test('19. Safe Demo Cleanup: real bookings, questions, and subscribers are prese
   db.prepare(`DELETE FROM questions WHERE id = ?`).run(qRes.lastInsertRowid);
   db.prepare(`DELETE FROM subscribers WHERE id = ?`).run(sRes.lastInsertRowid);
 });
+
+test('20. Host-Aware Routing: public domain /admin redirects to admin.tefpc.or.tz preserving route and query', async () => {
+  const { middleware } = await import('../middleware');
+  const { NextRequest } = await import('next/server');
+
+  const origEnv = process.env.NODE_ENV;
+  const envObj = process.env as Record<string, string | undefined>;
+  try {
+    envObj.NODE_ENV = 'production';
+    const req = new NextRequest('http://tefpc.or.tz/admin/bookings?view=upcoming&tab=1', {
+      headers: { host: 'tefpc.or.tz' },
+    });
+
+    const res = middleware(req);
+    assert.equal(res.status, 308, 'Public domain /admin must return 308 permanent redirect');
+    assert.equal(
+      res.headers.get('location'),
+      'https://admin.tefpc.or.tz/admin/bookings?view=upcoming&tab=1',
+      'Location header must preserve route and query string'
+    );
+  } finally {
+    envObj.NODE_ENV = origEnv;
+  }
+});
+
+test('21. Localhost Development: http://localhost:3000/admin bypasses public redirect', async () => {
+  const { middleware } = await import('../middleware');
+  const { NextRequest } = await import('next/server');
+
+  // Requesting login page on localhost
+  const req = new NextRequest('http://localhost:3000/admin/login', {
+    headers: { host: 'localhost:3000' },
+  });
+
+  const res = middleware(req);
+  assert.equal(res.headers.get('location'), null, 'Localhost /admin/login must not redirect to admin.tefpc.or.tz');
+});
+
+test('22. Admin Subdomain: admin.tefpc.or.tz/ rewrites to /admin when authenticated, or redirects to /login', async () => {
+  const { middleware } = await import('../middleware');
+  const { NextRequest } = await import('next/server');
+
+  // Unauthenticated request to admin.tefpc.or.tz/
+  const unauthReq = new NextRequest('http://admin.tefpc.or.tz/', {
+    headers: { host: 'admin.tefpc.or.tz' },
+  });
+  const unauthRes = middleware(unauthReq);
+  assert.equal(unauthRes.status, 307, 'Unauthenticated visitor to admin subdomain must be redirected to /login');
+  assert.match(unauthRes.headers.get('location') || '', /\/login$/);
+
+  // Authenticated request to admin.tefpc.or.tz/
+  const authReq = new NextRequest('http://admin.tefpc.or.tz/', {
+    headers: {
+      host: 'admin.tefpc.or.tz',
+      cookie: 'econ_admin_session=valid-test-token-value',
+    },
+  });
+  const authRes = middleware(authReq);
+  const rewriteUrl = authRes.headers.get('x-middleware-rewrite');
+  assert.ok(rewriteUrl, 'Authenticated admin subdomain root must rewrite internally');
+  assert.match(rewriteUrl, /\/admin$/, 'Must rewrite to /admin');
+});
+
+test('23. Server-Side Protection: /api/admin/* blocks unauthenticated calls with 401 regardless of host', async () => {
+  const { middleware } = await import('../middleware');
+  const { NextRequest } = await import('next/server');
+
+  // On admin subdomain
+  const reqSubdomain = new NextRequest('http://admin.tefpc.or.tz/api/admin/bookings', {
+    headers: { host: 'admin.tefpc.or.tz' },
+  });
+  const res1 = middleware(reqSubdomain);
+  assert.equal(res1.status, 401, 'Admin API must return 401 when session cookie is missing');
+
+  // On localhost
+  const reqLocal = new NextRequest('http://localhost:3000/api/admin/bookings', {
+    headers: { host: 'localhost:3000' },
+  });
+  const res2 = middleware(reqLocal);
+  assert.equal(res2.status, 401, 'Localhost admin API must return 401 when session cookie is missing');
+});
+
+test('24. CSRF Protection: Rejects mutating requests with untrusted origin', async () => {
+  const { middleware } = await import('../middleware');
+  const { NextRequest } = await import('next/server');
+
+  const evilReq = new NextRequest('http://admin.tefpc.or.tz/api/admin/auth/login', {
+    method: 'POST',
+    headers: {
+      host: 'admin.tefpc.or.tz',
+      origin: 'https://malicious-attacker-site.com',
+    },
+  });
+
+  const res = middleware(evilReq);
+  assert.equal(res.status, 403, 'Cross-origin mutating request from untrusted origin must be rejected with 403');
+});

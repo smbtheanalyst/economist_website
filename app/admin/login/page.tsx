@@ -28,7 +28,8 @@ export default function AdminLoginPage() {
         throw new Error(data.error || 'Invalid credentials');
       }
 
-      router.push('/admin');
+      const isSubdomain = typeof window !== 'undefined' && window.location.host.startsWith('admin.');
+      router.push(isSubdomain ? '/' : '/admin');
       router.refresh();
     } catch (err: unknown) {
       setStatus('error');

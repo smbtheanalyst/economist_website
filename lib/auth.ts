@@ -41,6 +41,9 @@ export async function createSession(adminId: number): Promise<string> {
   db.prepare(`UPDATE admin_users SET last_login_at = datetime('now') WHERE id = ?`).run(adminId);
 
   const cookieStore = await cookies();
+  // RFC 6265 Host-Only cookie:
+  // By omitting the `domain` option, the cookie is strictly bound to the exact origin host
+  // (e.g. admin.tefpc.or.tz) and will NOT be shared with parent tefpc.or.tz or other subdomains.
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

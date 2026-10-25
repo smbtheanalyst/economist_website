@@ -45,15 +45,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = async () => {
     await fetch('/api/admin/auth/logout', { method: 'POST' });
-    router.push('/admin/login');
+    const isSubdomain = typeof window !== 'undefined' && window.location.host.startsWith('admin.');
+    router.push(isSubdomain ? '/login' : '/admin/login');
     router.refresh();
   };
 
   const isActive = (href: string) => {
-    if (href === '/admin' && pathname === '/admin') return true;
-    if (href !== '/admin' && pathname.startsWith(href)) return true;
+    if (href === '/admin' && (pathname === '/admin' || pathname === '/')) return true;
+    if (href !== '/admin' && (pathname.startsWith(href) || pathname.startsWith(href.replace('/admin', '')))) return true;
     return false;
   };
+
+  const publicSiteUrl = typeof window !== 'undefined' && window.location.host.startsWith('admin.')
+    ? 'https://tefpc.or.tz'
+    : '/';
 
   return (
     <div className="space-y-6">
@@ -64,18 +69,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Administration Control Center
           </span>
           <h1 className="font-serif text-2xl font-medium text-[#192B2A]">
-            Economist Website Management
+            TEFPC Website Management
           </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
+          <a
+            href={publicSiteUrl}
             target="_blank"
+            rel="noopener noreferrer"
             className="px-3 py-1.5 text-xs font-semibold border border-[#285748] text-[#285748] rounded hover:bg-[#E9EDE4] transition-colors"
           >
             View Live Public Site ↗
-          </Link>
+          </a>
           <button
             onClick={handleLogout}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 transition-colors"
