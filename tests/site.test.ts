@@ -670,3 +670,125 @@ test('27. Unified Backup & Restore Verification', async () => {
   // Cleanup test backup directory
   fs.rmSync(backupDir, { recursive: true, force: true });
 });
+
+test('28. Startup Schema Cleanliness: initSchema initializes schema without seeding demo content or default users', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { DatabaseSync } = await import('node:sqlite');
+
+  const testFreshDbPath = path.resolve('./data/test_fresh_startup.db');
+  if (fs.existsSync(testFreshDbPath)) {
+    fs.rmSync(testFreshDbPath, { force: true });
+  }
+
+  const testDb = new DatabaseSync(testFreshDbPath);
+  testDb.exec('PRAGMA journal_mode = WAL;');
+  testDb.exec('PRAGMA foreign_keys = ON;');
+
+  // Simulate schema init exactly as in lib/db.ts
+  const dbModule = await import('../lib/db');
+  // getDb() executes initSchema on connection. Let's verify fresh DB schema execution.
+  // Initialize fresh DB using tsx with DATABASE_PATH
+  const { execSync } = await import('node:child_process');
+  execSync('npx tsx -e "import(\'./lib/db\').then(m => m.getDb());"', {
+    env: { ...process.env, DATABASE_PATH: testFreshDbPath }
+  });
+
+  const checkDb = new DatabaseSync(testFreshDbPath);
+  const tables = ['admin_users', 'admin_sessions', 'insights', 'research', 'events', 'questions', 'consultation_services', 'bookings', 'subscribers', 'email_logs'];
+  for (const table of tables) {
+    const row = checkDb.prepare(`SELECT count(*) as count FROM ${table}`).get() as { count: number };
+    assert.equal(row.count, 0, `Fresh database startup MUST have 0 records in ${table}, found ${row.count}`);
+  }
+
+  checkDb.close();
+  try {
+    fs.rmSync(testFreshDbPath, { force: true });
+  } catch {
+    // Windows file handle release latency
+  }
+});
+
+test('29. Production Content Initialization: Safe, repeatable import without copying sessions, bookings, or demo records', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { DatabaseSync } = await import('node:sqlite');
+  const { execSync } = await import('node:child_process');
+
+  const testImportDbPath = path.resolve('./data/test_import_procedure.db');
+  if (fs.existsSync(testImportDbPath)) {
+    fs.rmSync(testImportDbPath, { force: true });
+  }
+
+  // Run the production content initialization procedure
+  execSync('node scripts/init-production-content.mjs', {
+    env: { ...process.env, DATABASE_PATH: testImportDbPath }
+  });
+
+  const verifyDb = new DatabaseSync(testImportDbPath);
+
+  // Verify site settings populated with confirmed researcher name and TEFPC details
+  const settings = verifyDb.prepare('SELECT researcher_name, professional_title, is_demo, contact_email FROM site_settings WHERE id = 1').get() as {
+    researcher_name: string;
+    professional_title: string;
+    is_demo: number;
+    contact_email: string;
+  };
+  assert.equal(settings.researcher_name, 'Dr. Hamis Miraji Ally Simba');
+  assert.equal(settings.is_demo, 0);
+  assert.equal(settings.contact_email, '');
+
+  // Verify research publications
+  const pubCount = verifyDb.prepare('SELECT count(*) as count FROM research WHERE is_demo = 0').get() as { count: number };
+  assert.equal(pubCount.count, 7, 'Must import 7 genuine research publications');
+
+  // Verify insights
+  const insightCount = verifyDb.prepare('SELECT count(*) as count FROM insights WHERE is_demo = 0').get() as { count: number };
+  assert.equal(insightCount.count, 3, 'Must import 3 editorial insights');
+
+  // Verify events
+  const eventCount = verifyDb.prepare('SELECT count(*) as count FROM events WHERE is_demo = 0').get() as { count: number };
+  assert.equal(eventCount.count, 2, 'Must import 2 verified events');
+
+  // Verify services
+  const serviceCount = verifyDb.prepare('SELECT count(*) as count FROM consultation_services WHERE is_demo = 0').get() as { count: number };
+  assert.equal(serviceCount.count, 3, 'Must import 3 consultation services');
+
+  // Verify ZERO private or visitor data imported
+  const adminUsers = verifyDb.prepare('SELECT count(*) as count FROM admin_users').get() as { count: number };
+  const adminSessions = verifyDb.prepare('SELECT count(*) as count FROM admin_sessions').get() as { count: number };
+  const bookings = verifyDb.prepare('SELECT count(*) as count FROM bookings').get() as { count: number };
+  const questions = verifyDb.prepare('SELECT count(*) as count FROM questions').get() as { count: number };
+  const subscribers = verifyDb.prepare('SELECT count(*) as count FROM subscribers').get() as { count: number };
+  const demoRecords = verifyDb.prepare(`
+    SELECT (
+      (SELECT count(*) FROM research WHERE is_demo = 1) +
+      (SELECT count(*) FROM insights WHERE is_demo = 1) +
+      (SELECT count(*) FROM events WHERE is_demo = 1) +
+      (SELECT count(*) FROM consultation_services WHERE is_demo = 1) +
+      (SELECT count(*) FROM bookings WHERE is_demo = 1)
+    ) as count
+  `).get() as { count: number };
+
+  assert.equal(adminUsers.count, 0, 'Must NOT copy local admin users');
+  assert.equal(adminSessions.count, 0, 'Must NOT copy local admin sessions');
+  assert.equal(bookings.count, 0, 'Must NOT copy local bookings');
+  assert.equal(questions.count, 0, 'Must NOT copy local questions');
+  assert.equal(subscribers.count, 0, 'Must NOT copy local subscribers');
+  assert.equal(demoRecords.count, 0, 'Must NOT create any demo records');
+
+  // Idempotency check: Run a second time
+  execSync('node scripts/init-production-content.mjs', {
+    env: { ...process.env, DATABASE_PATH: testImportDbPath }
+  });
+
+  const pubCount2 = verifyDb.prepare('SELECT count(*) as count FROM research WHERE is_demo = 0').get() as { count: number };
+  assert.equal(pubCount2.count, 7, 'Re-running import MUST NOT duplicate research records');
+
+  verifyDb.close();
+  try {
+    fs.rmSync(testImportDbPath, { force: true });
+  } catch {
+    // Windows file handle release latency
+  }
+});

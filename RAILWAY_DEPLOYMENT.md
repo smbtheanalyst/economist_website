@@ -19,9 +19,11 @@
    - SQLite database resides at: `/data/economist.db`.
    - Uploaded assets reside at: `/data/uploads`.
    - Data on the volume persists across container restarts, crash recoveries, and deployments.
-3. **No Build-Time Demo Data Seeding:**
-   - Deployment scripts do **not** run demo seed or create default passwords.
-   - The database schema is initialized dynamically at runtime if not present (`CREATE TABLE IF NOT EXISTS`), preserving existing client records.
+3. **Startup Schema Initialization Without Demo Seeding:**
+   - On container startup, Next.js calls `getDb()` which executes `initSchema(db)`.
+   - `initSchema(db)` consists **strictly of `CREATE TABLE IF NOT EXISTS` statements** for all 14 tables.
+   - It contains **zero `INSERT` statements**.
+   - A newly deployed container boots with an empty, clean production schema without automatically creating demo articles, mock bookings, fake subscribers, or default accounts.
 
 ---
 
@@ -129,46 +131,88 @@ The platform's [`middleware.ts`](file:///c:/Users/PC/Documents/economist_website
 
 ---
 
-## 5. Post-Deployment Administration & Bootstrap
+## 5. Production Content Initialization & Admin Bootstrap
 
-### Bootstrapping the Admin Account on Railway
-Never hardcode or commit administrator credentials to Git. Use one of two secure options:
+> [!IMPORTANT]
+> **Why `railway run` must NOT be used for database commands:**  
+> The `railway run <cmd>` command executes on your **local machine** while injecting remote environment variables. Because `/data/economist.db` and `/data/uploads` live on a physical persistent volume mounted **only inside the remote Linux container**, local commands cannot reach `/data`.  
+> All administrative scripts targeting `/data` must be executed **inside the running container** via the **Railway Dashboard Web Terminal** or **`railway ssh`**.
 
-#### Option A: One-Off Execution via Railway CLI
-From your local terminal:
-```bash
-railway run npm run admin:bootstrap
-```
-The command will interactively prompt for username, email, and password, hashing credentials directly in the persistent `/data/economist.db`.
+### Step 5.1: Initializing Verified TEFPC Content into Production
 
-#### Option B: Environment Variable Bootstrap
-1. In Railway Variables, temporarily set:
+On a fresh deployment, the database schema is automatically created empty. To populate the verified TEFPC content (Dr. Simba's profile, publications, editorial articles, events, and consultation services) without copying local test data or demo records:
+
+1. Open the container terminal:
+   - **Via Railway Dashboard (Recommended):**  
+     Navigate to Railway Dashboard → Project → Service → Deployments → Click the active deployment → Click the **Terminal** tab.
+   - **Via Railway CLI:**  
+     Run `railway ssh` in your local project terminal.
+2. Run the production content initialization command:
+   ```bash
+   npm run prod:init-content
+   ```
+3. **What this script does:**
+   - **Site Settings:** Idempotently sets Dr. Hamis Miraji Ally Simba's confirmed profile, bio, affiliations, qualifications, research interests, Rita Tower office address, and payment guidance. Keeps `contact_email` blank (unlisted) until official client email activation.
+   - **Academic Research:** Idempotently inserts/updates all 7 genuine publications with author names preserved exactly as published (*Hamisi Miraji Simba*), DOI links, years, and abstracts.
+   - **Editorial Insights:** Idempotently syncs the 3 editorial articles on inequality, energy security, and AfCFTA corridors.
+   - **Events:** Idempotently syncs the TEFPC Policy Roundtable and BOT Conference.
+   - **Consultation Services:** Idempotently syncs the 3 services (Academic Methodology, Macroeconomic Advisory, Country Briefing) and initializes Monday–Friday 09:00–17:00 availability rules.
+   - **Zero Leaks & Zero Demo Records:** Strictly sets `is_demo = 0`. Does **not** touch or copy `admin_users`, `admin_sessions`, `bookings`, `questions`, `subscribers`, or `email_logs`.
+
+### Step 5.2: How Associated Assets Reach Production
+
+- **Portraits and Public CV PDF:**  
+  The optimized web derivatives (`/portrait-dr-hamis-simba-card.jpg`, `/portrait-dr-hamis-simba-card.webp`, `/portrait-dr-hamis-simba.jpg`, `/portrait-dr-hamis-simba.webp`) and the generated public CV document (`/dr-hamis-simba-cv-public.pdf`) are tracked directly in Git under the [`public/`](file:///c:/Users/PC/Documents/economist_website/public) directory.  
+  During deployment, Nixpacks compiles and bundles these files into the container image build. Next.js serves them statically and cache-efficiently without requiring any manual asset upload.
+- **Future Admin Uploads:**  
+  Any files uploaded via `/admin` in the future are saved to `/data/uploads` and served dynamically via [`app/uploads/[...file]/route.ts`](file:///c:/Users/PC/Documents/economist_website/app/uploads/[...file]/route.ts).
+
+### Step 5.3: Bootstrapping the Admin Account
+
+Never hardcode or commit administrator credentials to Git. Use one of two supported container methods:
+
+#### Option A: Interactive Bootstrap via Railway Web Terminal (Recommended)
+1. In the Railway Dashboard → Service → Active Deployment → **Terminal** tab:
+   ```bash
+   npm run admin:bootstrap
+   ```
+2. The command will securely prompt:
+   - Admin username (e.g. `simba_admin`)
+   - Admin email (e.g. `admin@tefpc.or.tz`)
+   - Secure password (minimum 10 characters)
+3. The password is hashed using bcrypt (cost factor 12) and inserted into `/data/economist.db`. Credentials are never printed in logs.
+
+#### Option B: Automated Bootstrap via Environment Variables
+1. In Railway Service → **Variables**, temporarily add:
    ```env
    ADMIN_BOOTSTRAP_USER=simba_admin
    ADMIN_BOOTSTRAP_EMAIL=admin@tefpc.or.tz
    ADMIN_BOOTSTRAP_PASSWORD=YourStrongTemporarySecretPassword123!
    ```
-2. In Railway Service → Deployments → Click **...** → **Run Command**:
+2. In Railway Dashboard Terminal (or via `railway ssh`):
    ```bash
    npm run admin:bootstrap
    ```
-3. Once created, **immediately delete** `ADMIN_BOOTSTRAP_PASSWORD` from Railway Variables.
+3. Once the account is created, **immediately delete** `ADMIN_BOOTSTRAP_PASSWORD` from Railway Variables.
 
 ---
 
 ## 6. Backup, Restore & Maintenance Procedures
 
+All maintenance commands that interact with the database and uploaded assets must be executed inside the container environment where `/data` is attached.
+
 ### Atomic Online Database Backup
-To create a live atomic snapshot without stopping the application:
+Inside the Railway container terminal (or via `railway ssh`):
 ```bash
-railway run npm run db:backup
+npm run db:backup
 ```
-- Creates an online snapshot of `/data/economist.db` using SQLite's native `VACUUM INTO`.
+- Creates an online atomic snapshot of `/data/economist.db` using SQLite's native `VACUUM INTO`.
 - Copies all uploaded files from `/data/uploads` into a timestamped directory beneath `/backups`.
 
 ### Restoring from Backup
+Inside the Railway container terminal (or via `railway ssh`):
 ```bash
-railway run npm run db:restore /path/to/backup_folder
+npm run db:restore /path/to/backup_folder
 ```
 - Validates backup integrity.
 - Safely replaces the database and cleans up stale WAL/SHM locks.
@@ -177,9 +221,9 @@ railway run npm run db:restore /path/to/backup_folder
 ### Pending Email Dispatch & Retry Mechanism
 When real SMTP is configured, transient network failures during dispatch are caught and retried automatically (up to 2 retries with exponential backoff). All failed dispatches are recorded in `email_logs`.
 
-To process and resend failed emails:
+To process and resend failed emails inside the container:
 ```bash
-railway run npm run email:retry
+npm run email:retry
 ```
 This queries all records with `delivery_status = 'failed'` and attempts immediate resend.
 
@@ -190,8 +234,11 @@ This queries all records with `delivery_status = 'failed'` and attempts immediat
 Before sharing the live site with public visitors:
 
 1. [ ] **Persistent Volume Verification:** Confirm Railway volume is mounted to `/data`.
-2. [ ] **DNS Record Propagation:** Verify `admin.tefpc.or.tz` and `tefpc.or.tz` resolve to Railway's edge network.
-3. [ ] **Official Mailbox Setup:** Activate `info@tefpc.or.tz` with client mail provider. Once verified, configure it in `/admin/profile`.
-4. [ ] **Live SMTP Relay:** Supply verified production SMTP credentials in Railway Variables.
-5. [ ] **Bank & Payment Remittance:** Enter official CRDB / NMB corporate bank details and M-Pesa Till number via `/admin/profile`.
-6. [ ] **Legal Review:** Conduct local legal review of `/privacy` under the Tanzania Personal Data Protection Act (PDPA 2022).
+2. [ ] **Fresh Startup Verification:** Verify the service starts and `/api/health` returns HTTP 200 with an empty, initialized schema.
+3. [ ] **Run Content Initialization:** Run `npm run prod:init-content` in the Railway Web Terminal to populate verified TEFPC content and publications.
+4. [ ] **Bootstrap Admin Account:** Run `npm run admin:bootstrap` in the Railway Web Terminal.
+5. [ ] **DNS Record Propagation:** Verify `admin.tefpc.or.tz` and `tefpc.or.tz` resolve to Railway's edge network.
+6. [ ] **Official Mailbox Setup:** Activate `info@tefpc.or.tz` with client mail provider. Once verified, configure it in `/admin/profile`.
+7. [ ] **Live SMTP Relay:** Supply verified production SMTP credentials in Railway Variables.
+8. [ ] **Bank & Payment Remittance:** Enter official CRDB / NMB corporate bank details and M-Pesa Till number via `/admin/profile`.
+9. [ ] **Legal Review:** Conduct local legal review of `/privacy` under the Tanzania Personal Data Protection Act (PDPA 2022).

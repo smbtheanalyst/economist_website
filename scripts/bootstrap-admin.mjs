@@ -15,6 +15,18 @@ const db = new DatabaseSync(path.resolve(DB_PATH));
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
 
+// Ensure table exists even if bootstrap runs before server startup
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_login_at TEXT
+  );
+`);
+
 async function main() {
   const args = process.argv.slice(2);
   let username = args.find(a => a.startsWith('--username='))?.split('=')[1] || process.env.ADMIN_BOOTSTRAP_USER;

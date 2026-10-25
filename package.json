@@ -11,6 +11,7 @@
     "seed": "node scripts/seed.mjs",
     "demo:clear": "node scripts/clear-demo.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
+    "prod:init-content": "node scripts/init-production-content.mjs",
     "db:backup": "node scripts/backup.mjs",
     "db:restore": "node scripts/restore.mjs",
     "email:retry": "node scripts/retry-failed-emails.mjs",
