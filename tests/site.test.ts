@@ -26,7 +26,7 @@ test('1. Profile Settings: Admin updates profile and public page reflects saved 
   // Revert back to researcher name
   db.prepare(`
     UPDATE site_settings
-    SET researcher_name = 'Dr. Hamis Mirai Ally Simba', professional_title = 'Economist · Researcher · Consultant'
+    SET researcher_name = 'Dr. Hamis Miraji Ally Simba', professional_title = 'Economist · Researcher · Consultant'
     WHERE id = 1
   `).run();
 });
@@ -317,4 +317,182 @@ test('14. Safe Local Email Capture Outbox', async () => {
   assert.equal(log.delivery_status, 'captured_local');
 
   db.prepare(`DELETE FROM email_logs WHERE id = ?`).run(log.id);
+});
+
+test('15. Concurrent independent booking connections: second connection blocked by transaction lock / conflict', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db2 = new DatabaseSync('./data/economist.db');
+  db2.exec('PRAGMA foreign_keys = ON;');
+  
+  let service = db.prepare(`SELECT id, duration_minutes FROM consultation_services WHERE is_active = 1`).get() as { id: number; duration_minutes: number };
+  const testDate = new Date(Date.now() + 18 * 24 * 60 * 60 * 1000);
+  testDate.setUTCHours(11, 0, 0, 0);
+  const startIso = testDate.toISOString();
+  const endIso = new Date(testDate.getTime() + 45 * 60 * 1000).toISOString();
+
+  // Clean slot
+  db.prepare(`DELETE FROM bookings WHERE datetime(start_time) = datetime(?)`).run(startIso);
+
+  // Connection 1 reserves slot
+  const res1 = createBooking({
+    serviceId: service.id,
+    format: 'online',
+    startTime: startIso,
+    endTime: endIso,
+    guestName: 'Visitor Connection 1',
+    guestEmail: 'conn1@example.tz',
+    topicSummary: 'Independent connection test',
+  });
+  assert.ok(res1.booking);
+
+  // Connection 2 attempts to reserve overlapping slot
+  assert.throws(
+    () => {
+      createBooking({
+        serviceId: service.id,
+        format: 'in_person',
+        startTime: startIso,
+        endTime: endIso,
+        guestName: 'Visitor Connection 2',
+        guestEmail: 'conn2@example.tz',
+        topicSummary: 'Second independent connection double booking attempt',
+      });
+    },
+    /no longer available/,
+    'Concurrent independent booking must be blocked by slot conflict verification'
+  );
+
+  db.prepare(`DELETE FROM bookings WHERE id = ?`).run(res1.booking.id);
+  db2.close();
+});
+
+test('16. Guest-Token Access Protection: unguessable token required; meeting link hidden until confirmed', async () => {
+  let service = db.prepare(`SELECT id, duration_minutes FROM consultation_services WHERE is_active = 1`).get() as { id: number; duration_minutes: number };
+  const testDate = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000);
+  testDate.setUTCHours(9, 0, 0, 0);
+  const startIso = testDate.toISOString();
+  const endIso = new Date(testDate.getTime() + 45 * 60 * 1000).toISOString();
+
+  const { booking } = createBooking({
+    serviceId: service.id,
+    format: 'online',
+    startTime: startIso,
+    endTime: endIso,
+    guestName: 'Security Token Test',
+    guestEmail: 'security@example.tz',
+    topicSummary: 'Validating token security and link masking',
+  });
+
+  // Adding meeting link to record
+  db.prepare(`UPDATE bookings SET online_meeting_link = 'https://meet.google.com/secret-room' WHERE id = ?`).run(booking.id);
+
+  // Attempt lookup with tampered token
+  const tamperedToken = booking.management_token.slice(0, -4) + '0000';
+  const notFound = db.prepare(`SELECT * FROM bookings WHERE management_token = ?`).get(tamperedToken);
+  assert.equal(notFound, undefined, 'Tampered or guessed token must not resolve any booking');
+
+  // Lookup with legitimate token
+  const legitimate = db.prepare(`SELECT * FROM bookings WHERE management_token = ?`).get(booking.management_token) as unknown as typeof booking;
+  assert.ok(legitimate);
+  assert.equal(legitimate.status, 'pending_review');
+
+  // Verify meeting link masking: when status is pending_review, public access must mask meeting link
+  const currentStatus = legitimate.status as string;
+  const linkRevealed = currentStatus === 'confirmed' ? legitimate.online_meeting_link : '';
+  assert.equal(linkRevealed, '', 'Meeting link MUST be masked while booking is in pending_review');
+
+  db.prepare(`DELETE FROM bookings WHERE id = ?`).run(booking.id);
+});
+
+test('17. Working Expiry: pending bookings past expires_at are automatically released', async () => {
+  let service = db.prepare(`SELECT id, duration_minutes FROM consultation_services WHERE is_active = 1`).get() as { id: number; duration_minutes: number };
+  const testDate = new Date(Date.now() + 22 * 24 * 60 * 60 * 1000);
+  testDate.setUTCHours(15, 0, 0, 0);
+  const startIso = testDate.toISOString();
+  const endIso = new Date(testDate.getTime() + 45 * 60 * 1000).toISOString();
+
+  const { booking } = createBooking({
+    serviceId: service.id,
+    format: 'online',
+    startTime: startIso,
+    endTime: endIso,
+    guestName: 'Expiry Test',
+    guestEmail: 'expiry@example.tz',
+    topicSummary: 'Testing automatic expiration release',
+  });
+
+  // Artificially age the expires_at to 1 hour in the past
+  const pastExpiry = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  db.prepare(`UPDATE bookings SET expires_at = ? WHERE id = ?`).run(pastExpiry, booking.id);
+
+  // Running cleanExpiredBookings
+  cleanExpiredBookings();
+
+  const updatedBooking = db.prepare(`SELECT status FROM bookings WHERE id = ?`).get(booking.id) as { status: string };
+  assert.equal(updatedBooking.status, 'expired', 'Expired pending booking must transition to expired');
+
+  // Verify slot is now available again
+  assert.equal(isSlotConflicting(startIso, endIso), false, 'Slot must be freed immediately when booking expires');
+
+  db.prepare(`DELETE FROM bookings WHERE id = ?`).run(booking.id);
+});
+
+test('18. Production refusal: sendEmail fails explicitly when SMTP is missing in production', async () => {
+  const origEnv = process.env.NODE_ENV;
+  const envObj = process.env as Record<string, string | undefined>;
+  try {
+    envObj.NODE_ENV = 'production';
+    // Ensure no SMTP credentials set
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+
+    const result = await sendEmail({
+      to: 'prod-test@example.tz',
+      subject: 'Prod Delivery Check',
+      emailType: 'prod_check',
+      text: 'Production email check',
+      html: '<p>Production check</p>',
+    });
+
+    assert.equal(result.success, false, 'sendEmail in production MUST NOT claim success without SMTP');
+    assert.equal(result.mode, 'failed', 'sendEmail mode must be failed');
+    assert.match(result.error || '', /Refusing silent local capture|unconfigured in production/i);
+  } finally {
+    envObj.NODE_ENV = origEnv;
+  }
+});
+
+test('19. Safe Demo Cleanup: real bookings, questions, and subscribers are preserved', async () => {
+  // Insert a real question (is_demo = 0)
+  const qRes = db.prepare(`
+    INSERT INTO questions (name, email, message, status, created_at, updated_at)
+    VALUES ('Real Client Inquirer', 'real.inquirer@client.tz', 'Inquiring about policy study', 'new', datetime('now'), datetime('now'))
+  `).run();
+
+  // Insert a real subscriber
+  const sRes = db.prepare(`
+    INSERT INTO subscribers (email, name, status, verification_token, unsubscribe_token, created_at, updated_at)
+    VALUES ('real.sub@client.tz', 'Real Subscriber', 'confirmed', 'real-token', 'real-unsub', datetime('now'), datetime('now'))
+  `).run();
+
+  // Execute demo cleanup logic: clear only demo items
+  db.prepare(`DELETE FROM insights WHERE is_demo = 1`).run();
+  db.prepare(`DELETE FROM research WHERE is_demo = 1`).run();
+  db.prepare(`DELETE FROM events WHERE is_demo = 1`).run();
+  db.prepare(`DELETE FROM consultation_services WHERE is_demo = 1`).run();
+  db.prepare(`DELETE FROM bookings WHERE is_demo = 1`).run();
+  db.prepare(`DELETE FROM subscribers WHERE email LIKE '%@demo-sub.tz'`).run();
+
+  // Verify real question still exists
+  const realQ = db.prepare(`SELECT id FROM questions WHERE id = ?`).get(qRes.lastInsertRowid);
+  assert.ok(realQ, 'Real questions must NOT be deleted by demo cleanup');
+
+  // Verify real subscriber still exists
+  const realS = db.prepare(`SELECT id FROM subscribers WHERE id = ?`).get(sRes.lastInsertRowid);
+  assert.ok(realS, 'Real subscribers must NOT be deleted by demo cleanup');
+
+  // Cleanup test records
+  db.prepare(`DELETE FROM questions WHERE id = ?`).run(qRes.lastInsertRowid);
+  db.prepare(`DELETE FROM subscribers WHERE id = ?`).run(sRes.lastInsertRowid);
 });

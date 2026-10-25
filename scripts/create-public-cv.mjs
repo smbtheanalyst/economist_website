@@ -3,7 +3,7 @@ import path from 'node:path';
 
 function createCleanPdf() {
   const lines = [
-    { text: "DR. HAMIS MIRAI ALLY SIMBA", size: 16, dy: 0, font: "F2" },
+    { text: "DR. HAMIS MIRAJI ALLY SIMBA", size: 16, dy: 0, font: "F2" },
     { text: "Economist - Researcher - Consultant", size: 12, dy: 22, font: "F1" },
     { text: "Tanzania Economic and Financial Policy Consultancy (TEFPC)", size: 11, dy: 18, font: "F1" },
     { text: "Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania", size: 10, dy: 16, font: "F1" },

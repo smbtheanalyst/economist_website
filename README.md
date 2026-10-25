@@ -1,8 +1,8 @@
-# Economist & Academic Researcher Website Platform
+# TEFPC — Dr. Hamis Miraji Ally Simba Website Platform
 
-A premium, English-only personal editorial and academic website tailored for an economic researcher and PhD holder based in Dar es Salaam, Tanzania.
+A premium, English-only academic editorial and consultancy website built for the **Tanzania Economic and Financial Policy Consultancy (TEFPC)** and **Dr. Hamis Miraji Ally Simba** (Economist · Researcher · Consultant), based at Rita Tower in Posta, Dar es Salaam, Tanzania.
 
-Built to present professional identity, publish economic ideas & empirical research, track economics events in Tanzania, accept visitor inquiries, manage consultation bookings (free mentorship and paid advisory), and manage double opt-in email subscriptions.
+Built to present his professional identity, publish economic ideas & empirical research, track economics events in Tanzania, accept visitor inquiries, manage consultation bookings (free mentorship and paid advisory), and manage double opt-in email subscriptions.
 
 ---
 
@@ -57,11 +57,11 @@ Built to present professional identity, publish economic ideas & empirical resea
    ```
    *Creates the SQLite database at `./data/economist.db`, establishes all tables, and seeds demonstration economic insights, research papers, Tanzania conferences, consultation services, and sample subscribers.*
 
-5. **Bootstrap Administrator Account:**
+5. **Bootstrap Administrator Account Interactively:**
    ```powershell
-   npm run admin:bootstrap -- --username=leadadmin --password=SecretAdmin123!
+   npm run admin:bootstrap
    ```
-   *(Or run `npm run admin:bootstrap` without parameters to generate a secure random password automatically).*
+   *Prompts interactively for your admin username, email, and password in the terminal. No credentials are committed to Git or printed to logs. Can also be automated via environment variables `ADMIN_BOOTSTRAP_USER`, `ADMIN_BOOTSTRAP_EMAIL`, and `ADMIN_BOOTSTRAP_PASSWORD` during deployment.*
 
 6. **Start Local Development Server:**
    ```powershell
@@ -79,10 +79,11 @@ Built to present professional identity, publish economic ideas & empirical resea
 | `npm run build` | Compiles optimized production bundle and pre-renders static routes |
 | `npm start` | Runs the compiled production build |
 | `npm run typecheck` | Validates TypeScript types across the entire project |
-| `npm test` | Executes automated integration test suite (12 test suites) |
-| `npm run seed` | Seeds or restores demonstration content for testing |
-| `npm run demo:clear` | Purges all demonstration content and resets placeholders |
-| `npm run admin:bootstrap` | Bootstraps or updates the administrator credentials |
+| `npm test` | Executes automated integration test suite (17 test suites; code coverage was not measured) |
+| `npm run db:backup` | Creates an atomic snapshot backup of `./data/economist.db` in `./backups/` via SQLite `VACUUM INTO` |
+| `npm run seed` | Seeds initial client content (Dr. Simba, TEFPC, publications, services) |
+| `npm run demo:clear` | Purges demonstration content without deleting real bookings, inquiries, or subscribers |
+| `npm run admin:bootstrap` | Interactively creates or updates administrator credentials |
 | `npm run screenshots` | Uses headless Edge browser to capture desktop & 360px screenshots |
 
 ---

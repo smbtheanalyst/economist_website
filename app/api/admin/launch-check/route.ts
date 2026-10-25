@@ -78,14 +78,15 @@ export async function GET() {
   }
 
   // 4. Contact Email & Office
+  const hasValidContactEmail = Boolean(settings.contact_email && !settings.contact_email.includes('example.tz'));
   checks.push({
     id: 'contact_email',
     category: 'Contact & Office',
     label: 'Public Contact Email',
-    status: settings.contact_email.includes('example.tz') ? 'warning' : 'pass',
-    detail: settings.contact_email.includes('example.tz')
-      ? 'Placeholder email (example.tz) configured. Update with client official email.'
-      : `Configured: ${settings.contact_email}`,
+    status: hasValidContactEmail ? 'pass' : 'warning',
+    detail: hasValidContactEmail
+      ? `Configured: ${settings.contact_email}`
+      : 'Unpublished pending client official mailbox activation. Contact forms remain active.',
   });
 
   // 5. SMTP Outgoing Mail

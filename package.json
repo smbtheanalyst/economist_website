@@ -11,6 +11,7 @@
     "seed": "node scripts/seed.mjs",
     "demo:clear": "node scripts/clear-demo.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
+    "db:backup": "node scripts/backup-db.mjs",
     "test": "tsx --test tests/*.test.ts",
     "screenshots": "node scripts/take-screenshots.mjs"
   },

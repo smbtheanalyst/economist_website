@@ -33,12 +33,21 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
                 <MapPin className="w-4 h-4 text-[#285748] mt-0.5 shrink-0" />
                 <span>{settings.office_address}</span>
               </div>
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-[#285748] shrink-0" />
-                <a href={`mailto:${settings.contact_email}`} className="hover:text-[#285748] underline">
-                  {settings.contact_email}
-                </a>
-              </div>
+              {settings.contact_email ? (
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-[#285748] shrink-0" />
+                  <a href={`mailto:${settings.contact_email}`} className="hover:text-[#285748] underline">
+                    {settings.contact_email}
+                  </a>
+                </div>
+              ) : (
+                <div className="text-xs text-[#52605A] italic">
+                  Official contact email pending activation. Submit inquiries directly via{' '}
+                  <Link href="/ask" className="text-[#285748] underline font-medium">
+                    Inquiry Form
+                  </Link>.
+                </div>
+              )}
             </div>
           </div>
 

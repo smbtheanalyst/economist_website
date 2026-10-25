@@ -54,21 +54,48 @@ async function capture() {
     console.log(`Saved: ${filePath}`);
   }
 
-  // Also capture authenticated admin dashboard
-  console.log('Logging in to capture Admin Dashboard...');
-  await page.setViewport({ width: 1280, height: 900 });
-  await page.goto('http://localhost:3000/admin/login', { waitUntil: 'networkidle0' });
-  await page.type('#admin-username', 'leadadmin');
-  await page.type('#admin-password', 'SecretAdmin123!');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.click('button[type="submit"]'),
-  ]);
+  // Also capture authenticated admin dashboard using an ephemeral session
+  console.log('Generating ephemeral session to capture Admin Dashboard...');
+  const { DatabaseSync } = await import('node:sqlite');
+  const crypto = await import('node:crypto');
+  const db = new DatabaseSync('./data/economist.db');
+  
+  // Create or verify an ephemeral admin record
+  let adminUser = db.prepare(`SELECT id FROM admin_users LIMIT 1`).get();
+  let createdEphemeralUser = false;
+  let adminId = adminUser?.id;
+  if (!adminId) {
+    const res = db.prepare(`INSERT INTO admin_users (username, email, password_hash) VALUES ('ephemeral_verify', 'verify@tefpc.or.tz', 'disabled')`).run();
+    adminId = Number(res.lastInsertRowid);
+    createdEphemeralUser = true;
+  }
 
-  const adminDashboardPath = path.join(outputDir, 'admin-dashboard-desktop.png');
-  const adminBuf = await page.screenshot({ fullPage: false });
-  safeWrite(adminDashboardPath, adminBuf);
-  console.log(`Saved: ${adminDashboardPath}`);
+  const ephemeralToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  db.prepare(`INSERT INTO admin_sessions (token, admin_id, expires_at) VALUES (?, ?, ?)`).run(ephemeralToken, adminId, expiresAt);
+
+  try {
+    await page.setViewport({ width: 1280, height: 900 });
+    await page.setCookie({
+      name: 'econ_admin_session',
+      value: ephemeralToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: true,
+    });
+    await page.goto('http://localhost:3000/admin', { waitUntil: 'networkidle0', timeout: 30000 });
+
+    const adminDashboardPath = path.join(outputDir, 'admin-dashboard-desktop.png');
+    const adminBuf = await page.screenshot({ fullPage: false });
+    safeWrite(adminDashboardPath, adminBuf);
+    console.log(`Saved: ${adminDashboardPath}`);
+  } finally {
+    // Clean up ephemeral session and user
+    db.prepare(`DELETE FROM admin_sessions WHERE token = ?`).run(ephemeralToken);
+    if (createdEphemeralUser) {
+      db.prepare(`DELETE FROM admin_users WHERE username = 'ephemeral_verify'`).run();
+    }
+  }
 
   await browser.close();
   console.log('🎉 All requested screenshots captured successfully!');

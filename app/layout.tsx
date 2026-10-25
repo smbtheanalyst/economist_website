@@ -18,13 +18,16 @@ export async function generateMetadata(): Promise<Metadata> {
     keywords: [
       'Economics',
       'Tanzania',
-      'East Africa',
-      'Macroeconomics',
-      'Fiscal Policy',
-      'AfCFTA',
-      'Trade',
-      'Research',
-      'Dr. Juma M. Mwangi',
+      'Dr. Hamis Miraji Ally Simba',
+      'TEFPC',
+      'Tanzania Economic and Financial Policy Consultancy',
+      'Economic Policy and Analysis',
+      'Economic Modelling',
+      'Applied Macroeconomics',
+      'Applied Econometrics',
+      'Economic Development',
+      'Time Series Econometrics',
+      'Dar es Salaam',
     ],
     authors: [{ name: settings.researcher_name }],
     creator: settings.researcher_name,
@@ -35,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
       url: process.env.SITE_URL || 'http://localhost:3000',
       title,
       description,
-      siteName: `${settings.researcher_name} - Economic Research`,
+      siteName: `TEFPC — ${settings.researcher_name}`,
     },
     twitter: {
       card: 'summary_large_image',
@@ -52,8 +55,51 @@ export default function RootLayout({
 }) {
   const settings = getSiteSettings();
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': 'https://tefpc.or.tz/#organization',
+        name: 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
+        url: 'https://tefpc.or.tz',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor',
+          addressLocality: 'Posta, Dar es Salaam',
+          addressCountry: 'TZ',
+        },
+      },
+      {
+        '@type': 'Person',
+        '@id': 'https://tefpc.or.tz/#person',
+        name: 'Dr. Hamis Miraji Ally Simba',
+        jobTitle: 'Economist · Researcher · Consultant',
+        worksFor: {
+          '@id': 'https://tefpc.or.tz/#organization',
+        },
+        image: 'https://tefpc.or.tz/portrait-dr-hamis-simba-card.jpg',
+        url: 'https://tefpc.or.tz/about',
+        knowsAbout: [
+          'Economic Policy and Analysis',
+          'Economic Modelling',
+          'Applied Macroeconomics',
+          'Applied Econometrics',
+          'Economic Development',
+          'Time Series Econometrics',
+        ],
+      },
+    ],
+  };
+
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-screen flex flex-col bg-[#F7F5EF] text-[#192B2A]">
         <Header
           researcherName={settings.researcher_name}

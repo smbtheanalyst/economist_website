@@ -36,7 +36,7 @@ function initSchema(db: DatabaseSync) {
     -- Site & Profile Settings
     CREATE TABLE IF NOT EXISTS site_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      researcher_name TEXT NOT NULL DEFAULT 'Dr. Hamis Mirai Ally Simba',
+      researcher_name TEXT NOT NULL DEFAULT 'Dr. Hamis Miraji Ally Simba',
       professional_title TEXT NOT NULL DEFAULT 'Economist · Researcher · Consultant',
       portrait_url TEXT DEFAULT '/portrait-dr-hamis-simba-card.jpg',
       biography TEXT NOT NULL DEFAULT '',
@@ -46,7 +46,7 @@ function initSchema(db: DatabaseSync) {
       cv_url TEXT DEFAULT '/dr-hamis-simba-cv-public.pdf',
       hero_headline TEXT NOT NULL DEFAULT 'Research, insights and informed economic decisions.',
       hero_intro TEXT NOT NULL DEFAULT 'Economic research and perspectives on public policy, development and the forces shaping Tanzania’s economy.',
-      contact_email TEXT NOT NULL DEFAULT 'info@tefpc.or.tz',
+      contact_email TEXT NOT NULL DEFAULT '',
       office_address TEXT NOT NULL DEFAULT 'Tanzania Economic and Financial Policy Consultancy (TEFPC), Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania',
       office_instructions TEXT NOT NULL DEFAULT 'Office visits require building check-in at Rita Tower, 15th Floor, Posta. Photo identification is required for visitor pass issuance.',
       online_instructions TEXT NOT NULL DEFAULT 'Consultation sessions are conducted over a secure video link. The meeting URL will be made available upon confirmation.',

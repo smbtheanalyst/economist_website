@@ -70,7 +70,11 @@ export default function PrivacyPage() {
             Consultation records and question submissions are stored securely in encrypted administrative databases. You may request deletion or correction of your submitted inquiries or cancellation of active bookings at any time by contacting:
           </p>
           <p className="font-medium text-[#285748]">
-            Email: <a href={`mailto:${settings.contact_email}`} className="underline">{settings.contact_email}</a><br />
+            {settings.contact_email ? (
+              <>Email: <a href={`mailto:${settings.contact_email}`} className="underline">{settings.contact_email}</a><br /></>
+            ) : (
+              <>Official contact email pending activation. Inquiries may be submitted via the website inquiry form.<br /></>
+            )}
             Address: {settings.office_address}
           </p>
         </section>

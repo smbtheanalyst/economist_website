@@ -6,7 +6,7 @@ import { getSiteSettings } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Biography & Academic Background',
-  description: 'Curriculum Vitae, academic qualifications, affiliations, and research interests of Dr. Juma M. Mwangi.',
+  description: 'Curriculum Vitae, academic qualifications, affiliations, and research interests of Dr. Hamis Miraji Ally Simba.',
 };
 
 export default function AboutPage() {
@@ -54,10 +54,12 @@ export default function AboutPage() {
                 <MapPin className="w-3.5 h-3.5 text-[#285748] shrink-0" />
                 <span>{settings.office_address}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-[#285748] shrink-0" />
-                <span>{settings.contact_email}</span>
-              </div>
+              {settings.contact_email ? (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-[#285748] shrink-0" />
+                  <span>{settings.contact_email}</span>
+                </div>
+              ) : null}
             </div>
 
             {settings.cv_url && (

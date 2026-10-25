@@ -28,11 +28,11 @@ export function getSiteSettings(): SiteSettings {
   if (!row) {
     db.prepare(`
       INSERT INTO site_settings (id, researcher_name, professional_title, hero_headline, hero_intro, office_address, contact_email, portrait_url, cv_url, is_demo)
-      VALUES (1, 'Dr. Hamis Mirai Ally Simba', 'Economist · Researcher · Consultant',
+      VALUES (1, 'Dr. Hamis Miraji Ally Simba', 'Economist · Researcher · Consultant',
               'Research, insights and informed economic decisions.',
               'Economic research and perspectives on public policy, development and the forces shaping Tanzania’s economy.',
               'Tanzania Economic and Financial Policy Consultancy (TEFPC), Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania',
-              'info@tefpc.or.tz',
+              '',
               '/portrait-dr-hamis-simba-card.jpg',
               '/dr-hamis-simba-cv-public.pdf',
               0)

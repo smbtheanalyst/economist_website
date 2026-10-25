@@ -18,7 +18,7 @@ console.log('🌱 Seeding database at:', path.resolve(DB_PATH));
 db.exec(`
   CREATE TABLE IF NOT EXISTS site_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    researcher_name TEXT NOT NULL DEFAULT 'Dr. Hamis Mirai Ally Simba',
+    researcher_name TEXT NOT NULL DEFAULT 'Dr. Hamis Miraji Ally Simba',
     professional_title TEXT NOT NULL DEFAULT 'Economist · Researcher · Consultant',
     portrait_url TEXT DEFAULT '/portrait-dr-hamis-simba-card.jpg',
     biography TEXT NOT NULL DEFAULT '',
@@ -28,7 +28,7 @@ db.exec(`
     cv_url TEXT DEFAULT '/dr-hamis-simba-cv-public.pdf',
     hero_headline TEXT NOT NULL DEFAULT 'Research, insights and informed economic decisions.',
     hero_intro TEXT NOT NULL DEFAULT 'Economic research and perspectives on public policy, development and the forces shaping Tanzania’s economy.',
-    contact_email TEXT NOT NULL DEFAULT 'info@tefpc.or.tz',
+    contact_email TEXT NOT NULL DEFAULT '',
     office_address TEXT NOT NULL DEFAULT 'Tanzania Economic and Financial Policy Consultancy (TEFPC), Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania',
     office_instructions TEXT NOT NULL DEFAULT 'Office visits require building check-in at Rita Tower, 15th Floor, Posta. Photo identification is required for visitor pass issuance.',
     online_instructions TEXT NOT NULL DEFAULT 'Consultation sessions are conducted over a secure video link. The meeting URL will be made available upon confirmation.',
@@ -219,7 +219,7 @@ db.exec(`
   );
 `);
 
-// 1. Site Settings (Dr. Hamis Mirai Ally Simba & TEFPC)
+// 1. Site Settings (Dr. Hamis Miraji Ally Simba & TEFPC)
 const qualifications = JSON.stringify([
   "PhD in Economics, Istanbul Gelisim University (2022–2026)",
   "M.S. in Economics, Ankara Yildirim Beyazit University (2016–2018)",
@@ -250,7 +250,7 @@ const socialLinks = JSON.stringify([
   { label: "LinkedIn", url: "https://linkedin.com" }
 ]);
 
-const bioText = `Dr. Hamis Mirai Ally Simba is an applied economist, researcher, and policy consultant specializing in macroeconomic analysis, econometrics, and empirical policy evaluation. His academic and advisory work focuses on the intersection of institutional governance, energy transition, economic modeling, and income distribution dynamics across Sub-Saharan Africa and Tanzania.
+const bioText = `Dr. Hamis Miraji Ally Simba is an applied economist, researcher, and policy consultant specializing in macroeconomic analysis, econometrics, and empirical policy evaluation. His academic and advisory work focuses on the intersection of institutional governance, energy transition, economic modeling, and income distribution dynamics across Sub-Saharan Africa and Tanzania.
 
 He has conducted extensive research at international and domestic academic and policy institutions, including Istanbul Gelisim University, Ankara Yildirim Beyazit University, and the Economic and Social Research Foundation (ESRF). His professional track record includes leadership in bilateral trade facilitation as Economic Director for the Tanzania Chamber of Commerce, Industry and Agriculture (TCCIA) in Turkey, as well as founding Magandi Foreign Trade Comp LTD.
 
@@ -264,13 +264,13 @@ db.prepare(`
     office_instructions, online_instructions, payment_instructions,
     social_links_json, is_demo, updated_at
   ) VALUES (
-    1, 'Dr. Hamis Mirai Ally Simba', 'Economist · Researcher · Consultant',
+    1, 'Dr. Hamis Miraji Ally Simba', 'Economist · Researcher · Consultant',
     '/portrait-dr-hamis-simba-card.jpg',
     ?, ?, ?, ?,
     '/dr-hamis-simba-cv-public.pdf',
     'Research, insights and informed economic decisions.',
     'Economic research and perspectives on public policy, development and the forces shaping Tanzania’s economy.',
-    'info@tefpc.or.tz',
+    '',
     'Tanzania Economic and Financial Policy Consultancy (TEFPC), Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania',
     'Office visits require building check-in at Rita Tower, 15th Floor, Posta. Photo identification is required for visitor pass issuance.',
     'Online consultations are held via secure video link. Your direct link will be activated and confirmed upon admin booking review.',
@@ -570,4 +570,4 @@ const insertSubscriber = db.prepare(`
 insertSubscriber.run("amani.mkali@demo-sub.tz", "Amani Mkali", "sub-token-client-1", "unsub-token-client-1");
 insertSubscriber.run("sarah.kimaro@demo-sub.tz", "Sarah Kimaro", "sub-token-client-2", "unsub-token-client-2");
 
-console.log('✅ Client data seeded successfully for Dr. Hamis Mirai Ally Simba and TEFPC.');
+console.log('✅ Client data seeded successfully for Dr. Hamis Miraji Ally Simba and TEFPC.');
