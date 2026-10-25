@@ -35,7 +35,7 @@ function ensureSchema() {
       office_address TEXT NOT NULL DEFAULT 'Tanzania Economic and Financial Policy Consultancy (TEFPC), Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor, Posta, Dar es Salaam, Tanzania',
       office_instructions TEXT NOT NULL DEFAULT 'Office visits require building check-in at Rita Tower, 15th Floor, Posta. Photo identification is required for visitor pass issuance.',
       online_instructions TEXT NOT NULL DEFAULT 'Consultation sessions are conducted over a secure video link. The meeting URL will be made available upon confirmation.',
-      payment_instructions TEXT NOT NULL DEFAULT 'For paid consultations, payments are accepted via direct Bank Transfer (NMB / CRDB) or Mobile Money (M-Pesa / Tigo Pesa). Transfer details and reference numbers are provided in your booking confirmation.',
+      payment_instructions TEXT NOT NULL DEFAULT '',
       social_links_json TEXT NOT NULL DEFAULT '[]',
       is_demo INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -238,52 +238,13 @@ async function main() {
 
   const seed = JSON.parse(fs.readFileSync(seedFilePath, 'utf8'));
 
-  // 1. Site Settings
+  // 1. Site Settings (Insert once if missing; preserve any later admin modifications)
   console.log('\n[1/5] Applying verified TEFPC site and profile settings...');
   const s = seed.site_settings;
   const existingSettings = db.prepare('SELECT id FROM site_settings WHERE id = 1').get();
 
   if (existingSettings) {
-    db.prepare(`
-      UPDATE site_settings SET
-        researcher_name = ?,
-        professional_title = ?,
-        portrait_url = ?,
-        biography = ?,
-        qualifications_json = ?,
-        research_interests_json = ?,
-        affiliations_json = ?,
-        cv_url = ?,
-        hero_headline = ?,
-        hero_intro = ?,
-        contact_email = ?,
-        office_address = ?,
-        office_instructions = ?,
-        online_instructions = ?,
-        payment_instructions = ?,
-        social_links_json = ?,
-        is_demo = 0,
-        updated_at = datetime('now')
-      WHERE id = 1
-    `).run(
-      s.researcher_name,
-      s.professional_title,
-      s.portrait_url,
-      s.biography,
-      s.qualifications_json,
-      s.research_interests_json,
-      s.affiliations_json,
-      s.cv_url,
-      s.hero_headline,
-      s.hero_intro,
-      s.contact_email || '',
-      s.office_address,
-      s.office_instructions,
-      s.online_instructions,
-      s.payment_instructions,
-      s.social_links_json
-    );
-    console.log(`  ✓ Updated existing site settings for "${s.researcher_name}".`);
+    console.log(`  ℹ Site settings already exist (id = 1). Preserving existing settings and later admin edits.`);
   } else {
     db.prepare(`
       INSERT INTO site_settings (
@@ -314,15 +275,15 @@ async function main() {
       s.office_address,
       s.office_instructions,
       s.online_instructions,
-      s.payment_instructions,
-      s.social_links_json
+      s.payment_instructions || '',
+      s.social_links_json || '[]'
     );
-    console.log(`  ✓ Inserted site settings for "${s.researcher_name}".`);
+    console.log(`  ✓ Initialized site settings for "${s.researcher_name}".`);
   }
 
-  // 2. Research Publications
-  console.log(`\n[2/5] Initializing verified academic research publications (${seed.research.length} entries)...`);
-  const upsertResearch = db.prepare(`
+  // 2. Research Publications (Insert if missing; ON CONFLICT DO NOTHING to preserve admin edits)
+  console.log(`\n[2/5] Initializing verified academic research publications (${seed.research.length} entries as unpublished drafts)...`);
+  const insertResearch = db.prepare(`
     INSERT INTO research (
       title, slug, abstract, authors, year, publication_type,
       topics_json, journal_publisher, doi_url, pdf_url, is_featured,
@@ -332,27 +293,14 @@ async function main() {
       @topics_json, @journal_publisher, @doi_url, @pdf_url, @is_featured,
       @status, 0, datetime('now'), datetime('now')
     )
-    ON CONFLICT(slug) DO UPDATE SET
-      title = excluded.title,
-      abstract = excluded.abstract,
-      authors = excluded.authors,
-      year = excluded.year,
-      publication_type = excluded.publication_type,
-      topics_json = excluded.topics_json,
-      journal_publisher = excluded.journal_publisher,
-      doi_url = excluded.doi_url,
-      pdf_url = excluded.pdf_url,
-      is_featured = excluded.is_featured,
-      status = excluded.status,
-      is_demo = 0,
-      updated_at = datetime('now')
+    ON CONFLICT(slug) DO NOTHING
   `);
 
   for (const r of seed.research) {
-    upsertResearch.run({
+    const res = insertResearch.run({
       title: r.title,
       slug: r.slug,
-      abstract: r.abstract,
+      abstract: r.abstract || '',
       authors: r.authors,
       year: r.year,
       publication_type: r.publication_type,
@@ -361,14 +309,19 @@ async function main() {
       doi_url: r.doi_url || '',
       pdf_url: r.pdf_url || '',
       is_featured: r.is_featured || 0,
-      status: r.status || 'published'
+      status: r.status || 'draft'
     });
-    console.log(`  ✓ Synced research: "${r.title.slice(0, 50)}..." (${r.authors}, ${r.year})`);
+
+    if (res.changes > 0) {
+      console.log(`  ✓ Inserted draft research: "${r.title.slice(0, 50)}..." (${r.authors}, ${r.year}) [${r.status}]`);
+    } else {
+      console.log(`  ℹ Research publication already exists: "${r.title.slice(0, 50)}...". Preserving existing record & admin edits.`);
+    }
   }
 
-  // 3. Editorial Insights
-  console.log(`\n[3/5] Initializing editorial insights and policy analysis (${seed.insights.length} entries)...`);
-  const upsertInsight = db.prepare(`
+  // 3. Editorial Insights (Insert if missing; ON CONFLICT DO NOTHING to preserve admin edits)
+  console.log(`\n[3/5] Initializing editorial insights and policy analysis (${seed.insights.length} entries as unpublished drafts)...`);
+  const insertInsight = db.prepare(`
     INSERT INTO insights (
       title, slug, summary, content_html, topic, cover_image_url,
       read_time_minutes, is_featured, status, published_at, is_demo,
@@ -378,22 +331,11 @@ async function main() {
       @read_time_minutes, @is_featured, @status, @published_at, 0,
       datetime('now'), datetime('now')
     )
-    ON CONFLICT(slug) DO UPDATE SET
-      title = excluded.title,
-      summary = excluded.summary,
-      content_html = excluded.content_html,
-      topic = excluded.topic,
-      cover_image_url = excluded.cover_image_url,
-      read_time_minutes = excluded.read_time_minutes,
-      is_featured = excluded.is_featured,
-      status = excluded.status,
-      published_at = excluded.published_at,
-      is_demo = 0,
-      updated_at = datetime('now')
+    ON CONFLICT(slug) DO NOTHING
   `);
 
   for (const i of seed.insights) {
-    upsertInsight.run({
+    const res = insertInsight.run({
       title: i.title,
       slug: i.slug,
       summary: i.summary,
@@ -402,15 +344,20 @@ async function main() {
       cover_image_url: i.cover_image_url || '',
       read_time_minutes: i.read_time_minutes || 5,
       is_featured: i.is_featured || 0,
-      status: i.status || 'published',
-      published_at: i.published_at || (i.status === 'published' ? new Date().toISOString() : null)
+      status: i.status || 'draft',
+      published_at: i.published_at || null
     });
-    console.log(`  ✓ Synced insight: "${i.title}" [${i.status}]`);
+
+    if (res.changes > 0) {
+      console.log(`  ✓ Inserted draft insight: "${i.title}" [${i.status}]`);
+    } else {
+      console.log(`  ℹ Insight already exists: "${i.title}". Preserving existing record & admin edits.`);
+    }
   }
 
-  // 4. Events & Consultation Services
-  console.log(`\n[4/5] Initializing economics events (${seed.events.length}) & consultation services (${seed.consultation_services.length})...`);
-  const upsertEvent = db.prepare(`
+  // 4. Events & Consultation Services (Insert if missing; ON CONFLICT DO NOTHING)
+  console.log(`\n[4/5] Initializing economics events (${seed.events.length}) & provisional consultation services (${seed.consultation_services.length})...`);
+  const insertEvent = db.prepare(`
     INSERT INTO events (
       title, slug, description, start_time, end_time, venue_or_format,
       is_online, is_organized_by_me, organizer_name, registration_url,
@@ -420,22 +367,11 @@ async function main() {
       @is_online, @is_organized_by_me, @organizer_name, @registration_url,
       0, datetime('now'), datetime('now')
     )
-    ON CONFLICT(slug) DO UPDATE SET
-      title = excluded.title,
-      description = excluded.description,
-      start_time = excluded.start_time,
-      end_time = excluded.end_time,
-      venue_or_format = excluded.venue_or_format,
-      is_online = excluded.is_online,
-      is_organized_by_me = excluded.is_organized_by_me,
-      organizer_name = excluded.organizer_name,
-      registration_url = excluded.registration_url,
-      is_demo = 0,
-      updated_at = datetime('now')
+    ON CONFLICT(slug) DO NOTHING
   `);
 
   for (const ev of seed.events) {
-    upsertEvent.run({
+    const res = insertEvent.run({
       title: ev.title,
       slug: ev.slug,
       description: ev.description,
@@ -447,10 +383,15 @@ async function main() {
       organizer_name: ev.organizer_name || 'TEFPC',
       registration_url: ev.registration_url || ''
     });
-    console.log(`  ✓ Synced event: "${ev.title}"`);
+
+    if (res.changes > 0) {
+      console.log(`  ✓ Inserted event: "${ev.title}"`);
+    } else {
+      console.log(`  ℹ Event already exists: "${ev.title}". Preserving existing record & admin edits.`);
+    }
   }
 
-  const upsertService = db.prepare(`
+  const insertService = db.prepare(`
     INSERT INTO consultation_services (
       name, slug, is_paid, price_amount, currency, duration_minutes,
       format, description, prep_instructions, is_active, order_index,
@@ -460,23 +401,11 @@ async function main() {
       @format, @description, @prep_instructions, @is_active, @order_index,
       0, datetime('now'), datetime('now')
     )
-    ON CONFLICT(slug) DO UPDATE SET
-      name = excluded.name,
-      is_paid = excluded.is_paid,
-      price_amount = excluded.price_amount,
-      currency = excluded.currency,
-      duration_minutes = excluded.duration_minutes,
-      format = excluded.format,
-      description = excluded.description,
-      prep_instructions = excluded.prep_instructions,
-      is_active = excluded.is_active,
-      order_index = excluded.order_index,
-      is_demo = 0,
-      updated_at = datetime('now')
+    ON CONFLICT(slug) DO NOTHING
   `);
 
   for (const cs of seed.consultation_services) {
-    upsertService.run({
+    const res = insertService.run({
       name: cs.name,
       slug: cs.slug,
       is_paid: cs.is_paid || 0,
@@ -486,10 +415,15 @@ async function main() {
       format: cs.format || 'both',
       description: cs.description,
       prep_instructions: cs.prep_instructions || '',
-      is_active: cs.is_active !== undefined ? cs.is_active : 1,
+      is_active: cs.is_active !== undefined ? cs.is_active : 0,
       order_index: cs.order_index || 0
     });
-    console.log(`  ✓ Synced consultation service: "${cs.name}" (${cs.is_paid ? `${cs.price_amount} ${cs.currency}` : 'Free'})`);
+
+    if (res.changes > 0) {
+      console.log(`  ✓ Inserted provisional service: "${cs.name}" (Public booking: ${cs.is_active ? 'ENABLED' : 'DISABLED until approved'})`);
+    } else {
+      console.log(`  ℹ Consultation service already exists: "${cs.name}". Preserving existing settings & admin edits.`);
+    }
   }
 
   // 5. Availability Rules
@@ -503,9 +437,9 @@ async function main() {
     for (const rule of seed.availability_rules) {
       insertRule.run(rule.day_of_week, rule.start_time, rule.end_time, rule.is_active);
     }
-    console.log(`  ✓ Initialized ${seed.availability_rules.length} default availability schedule rules (Mon-Fri 09:00-17:00).`);
+    console.log(`  ✓ Initialized ${seed.availability_rules.length} default availability schedule rules.`);
   } else {
-    console.log(`  ℹ Availability rules already configured (${ruleCount} rules present). Existing rules preserved.`);
+    console.log(`  ℹ Availability rules check: ${ruleCount} rules present. Preserving current schedule.`);
   }
 
   // Verification Audit
@@ -516,6 +450,10 @@ async function main() {
   const bookingCount = db.prepare('SELECT count(*) as count FROM bookings').get().count;
   const questionCount = db.prepare('SELECT count(*) as count FROM questions').get().count;
   const subscriberCount = db.prepare('SELECT count(*) as count FROM subscribers').get().count;
+  const publishedInsights = db.prepare(`SELECT count(*) as count FROM insights WHERE status = 'published'`).get().count;
+  const publishedResearch = db.prepare(`SELECT count(*) as count FROM research WHERE status = 'published'`).get().count;
+  const activeEvents = db.prepare('SELECT count(*) as count FROM events').get().count;
+  const activeServices = db.prepare('SELECT count(*) as count FROM consultation_services WHERE is_active = 1').get().count;
   const demoCount = db.prepare(`
     SELECT (
       (SELECT count(*) FROM research WHERE is_demo = 1) +
@@ -526,12 +464,16 @@ async function main() {
     ) as count
   `).get().count;
 
-  console.log(`  - Admin Users:        ${userCount} (Untouched)`);
-  console.log(`  - Active Sessions:    ${sessionCount} (Untouched)`);
-  console.log(`  - Visitor Bookings:   ${bookingCount} (Untouched)`);
-  console.log(`  - Visitor Questions:  ${questionCount} (Untouched)`);
-  console.log(`  - Email Subscribers:  ${subscriberCount} (Untouched)`);
-  console.log(`  - Demo Records:       ${demoCount} (Strictly 0 demo items inserted)`);
+  console.log(`  - Admin Users:            ${userCount} (Untouched)`);
+  console.log(`  - Active Sessions:        ${sessionCount} (Untouched)`);
+  console.log(`  - Visitor Bookings:       ${bookingCount} (Untouched)`);
+  console.log(`  - Visitor Questions:      ${questionCount} (Untouched)`);
+  console.log(`  - Email Subscribers:      ${subscriberCount} (Untouched)`);
+  console.log(`  - Published Insights:     ${publishedInsights} (Strictly 0 published)`);
+  console.log(`  - Published Research:     ${publishedResearch} (Strictly 0 published without verified abstracts/DOIs)`);
+  console.log(`  - Published Events:       ${activeEvents} (Strictly 0 published)`);
+  console.log(`  - Public Active Services: ${activeServices} (Strictly 0 until client approves public bookings)`);
+  console.log(`  - Demo Records:           ${demoCount} (Strictly 0 demo items)`);
   console.log('================================================================');
   console.log('✅ TEFPC production content initialization completed successfully.');
 }

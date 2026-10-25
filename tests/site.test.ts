@@ -727,32 +727,40 @@ test('29. Production Content Initialization: Safe, repeatable import without cop
 
   const verifyDb = new DatabaseSync(testImportDbPath);
 
-  // Verify site settings populated with confirmed researcher name and TEFPC details
-  const settings = verifyDb.prepare('SELECT researcher_name, professional_title, is_demo, contact_email FROM site_settings WHERE id = 1').get() as {
+  // Verify site settings populated with confirmed researcher name and empty payment/email
+  const settings = verifyDb.prepare('SELECT researcher_name, professional_title, is_demo, contact_email, payment_instructions FROM site_settings WHERE id = 1').get() as {
     researcher_name: string;
     professional_title: string;
     is_demo: number;
     contact_email: string;
+    payment_instructions: string;
   };
   assert.equal(settings.researcher_name, 'Dr. Hamis Miraji Ally Simba');
   assert.equal(settings.is_demo, 0);
   assert.equal(settings.contact_email, '');
+  assert.equal(settings.payment_instructions, '');
 
-  // Verify research publications
+  // Verify research publications (7 genuine citations, all unpublished drafts without unsupported abstracts/DOIs)
   const pubCount = verifyDb.prepare('SELECT count(*) as count FROM research WHERE is_demo = 0').get() as { count: number };
   assert.equal(pubCount.count, 7, 'Must import 7 genuine research publications');
+  const publishedPubs = verifyDb.prepare(`SELECT count(*) as count FROM research WHERE status = 'published'`).get() as { count: number };
+  assert.equal(publishedPubs.count, 0, 'Unsupported abstracts and DOIs must keep research unpublished');
 
-  // Verify insights
+  // Verify insights (all unpublished drafts)
   const insightCount = verifyDb.prepare('SELECT count(*) as count FROM insights WHERE is_demo = 0').get() as { count: number };
   assert.equal(insightCount.count, 3, 'Must import 3 editorial insights');
+  const publishedInsights = verifyDb.prepare(`SELECT count(*) as count FROM insights WHERE status = 'published'`).get() as { count: number };
+  assert.equal(publishedInsights.count, 0, 'Editorial insights must be unpublished drafts');
 
-  // Verify events
+  // Verify events (0 published events)
   const eventCount = verifyDb.prepare('SELECT count(*) as count FROM events WHERE is_demo = 0').get() as { count: number };
-  assert.equal(eventCount.count, 2, 'Must import 2 verified events');
+  assert.equal(eventCount.count, 0, 'Must keep events unpublished');
 
-  // Verify services
+  // Verify services (all provisional, public booking disabled)
   const serviceCount = verifyDb.prepare('SELECT count(*) as count FROM consultation_services WHERE is_demo = 0').get() as { count: number };
   assert.equal(serviceCount.count, 3, 'Must import 3 consultation services');
+  const activeServices = verifyDb.prepare('SELECT count(*) as count FROM consultation_services WHERE is_active = 1').get() as { count: number };
+  assert.equal(activeServices.count, 0, 'Must not enable public booking until approved');
 
   // Verify ZERO private or visitor data imported
   const adminUsers = verifyDb.prepare('SELECT count(*) as count FROM admin_users').get() as { count: number };
@@ -760,30 +768,39 @@ test('29. Production Content Initialization: Safe, repeatable import without cop
   const bookings = verifyDb.prepare('SELECT count(*) as count FROM bookings').get() as { count: number };
   const questions = verifyDb.prepare('SELECT count(*) as count FROM questions').get() as { count: number };
   const subscribers = verifyDb.prepare('SELECT count(*) as count FROM subscribers').get() as { count: number };
-  const demoRecords = verifyDb.prepare(`
-    SELECT (
-      (SELECT count(*) FROM research WHERE is_demo = 1) +
-      (SELECT count(*) FROM insights WHERE is_demo = 1) +
-      (SELECT count(*) FROM events WHERE is_demo = 1) +
-      (SELECT count(*) FROM consultation_services WHERE is_demo = 1) +
-      (SELECT count(*) FROM bookings WHERE is_demo = 1)
-    ) as count
-  `).get() as { count: number };
 
   assert.equal(adminUsers.count, 0, 'Must NOT copy local admin users');
   assert.equal(adminSessions.count, 0, 'Must NOT copy local admin sessions');
   assert.equal(bookings.count, 0, 'Must NOT copy local bookings');
   assert.equal(questions.count, 0, 'Must NOT copy local questions');
   assert.equal(subscribers.count, 0, 'Must NOT copy local subscribers');
-  assert.equal(demoRecords.count, 0, 'Must NOT create any demo records');
 
-  // Idempotency check: Run a second time
+  // Simulate later admin edits:
+  // 1. Admin updates bio in site_settings
+  verifyDb.prepare(`UPDATE site_settings SET biography = 'Admin Customized Biography' WHERE id = 1`).run();
+  // 2. Admin approves and publishes a research paper with an official abstract
+  const firstPaper = verifyDb.prepare(`SELECT slug FROM research LIMIT 1`).get() as { slug: string };
+  verifyDb.prepare(`UPDATE research SET status = 'published', abstract = 'Official Client Approved Abstract' WHERE slug = ?`).run(firstPaper.slug);
+  // 3. Admin activates a consultation service
+  const firstService = verifyDb.prepare(`SELECT slug FROM consultation_services LIMIT 1`).get() as { slug: string };
+  verifyDb.prepare(`UPDATE consultation_services SET is_active = 1, price_amount = 250 WHERE slug = ?`).run(firstService.slug);
+
+  // Re-run initialization to test preservation of admin edits
   execSync('node scripts/init-production-content.mjs', {
     env: { ...process.env, DATABASE_PATH: testImportDbPath }
   });
 
-  const pubCount2 = verifyDb.prepare('SELECT count(*) as count FROM research WHERE is_demo = 0').get() as { count: number };
-  assert.equal(pubCount2.count, 7, 'Re-running import MUST NOT duplicate research records');
+  // Verify later admin edits WERE NOT overwritten
+  const checkSettings = verifyDb.prepare('SELECT biography FROM site_settings WHERE id = 1').get() as { biography: string };
+  assert.equal(checkSettings.biography, 'Admin Customized Biography', 'Rerunning init MUST NOT overwrite admin bio edits');
+
+  const checkPaper = verifyDb.prepare('SELECT status, abstract FROM research WHERE slug = ?').get(firstPaper.slug) as { status: string; abstract: string };
+  assert.equal(checkPaper.status, 'published', 'Rerunning init MUST NOT overwrite admin published status');
+  assert.equal(checkPaper.abstract, 'Official Client Approved Abstract', 'Rerunning init MUST NOT overwrite admin paper abstract edits');
+
+  const checkService = verifyDb.prepare('SELECT is_active, price_amount FROM consultation_services WHERE slug = ?').get(firstService.slug) as { is_active: number; price_amount: number };
+  assert.equal(checkService.is_active, 1, 'Rerunning init MUST NOT revert approved active consultation service');
+  assert.equal(checkService.price_amount, 250, 'Rerunning init MUST NOT overwrite approved price');
 
   verifyDb.close();
   try {

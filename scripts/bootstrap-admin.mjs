@@ -28,42 +28,38 @@ db.exec(`
 `);
 
 async function main() {
-  const args = process.argv.slice(2);
-  let username = args.find(a => a.startsWith('--username='))?.split('=')[1] || process.env.ADMIN_BOOTSTRAP_USER;
-  let email = args.find(a => a.startsWith('--email='))?.split('=')[1] || process.env.ADMIN_BOOTSTRAP_EMAIL;
-  let password = args.find(a => a.startsWith('--password='))?.split('=')[1] || process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  console.log('==================================================');
+  console.log('🔐 TEFPC Interactive Admin Account Bootstrap');
+  console.log(`📍 Target Database: ${path.resolve(DB_PATH)}`);
+  console.log('==================================================');
 
-  // If interactive terminal and missing fields, prompt securely
-  if (process.stdin.isTTY && (!username || !password)) {
-    const rl = readline.createInterface({ input, output });
-    try {
-      if (!username) {
-        username = (await rl.question('Enter admin username: ')).trim();
-      }
-      if (!email) {
-        email = (await rl.question('Enter admin email (e.g. admin@tefpc.or.tz): ')).trim();
-      }
-      if (!password) {
-        password = (await rl.question('Enter secure password (min 10 characters): ')).trim();
-      }
-    } finally {
-      rl.close();
+  const rl = readline.createInterface({ input, output });
+  let username = '';
+  let email = '';
+  let password = '';
+
+  try {
+    username = (await rl.question('Enter admin username (e.g. simba_admin): ')).trim();
+    while (!username) {
+      console.log('Admin username is required.');
+      username = (await rl.question('Enter admin username: ')).trim();
     }
+
+    email = (await rl.question('Enter admin notification email (e.g. admin@tefpc.or.tz): ')).trim();
+    if (!email) {
+      email = 'admin@tefpc.or.tz';
+    }
+
+    password = (await rl.question('Enter secure admin password (min 10 characters): ')).trim();
+    while (!password || password.length < 10) {
+      console.log('Password must be at least 10 characters long for production security.');
+      password = (await rl.question('Enter secure admin password (min 10 characters): ')).trim();
+    }
+  } finally {
+    rl.close();
   }
 
-  if (!username) {
-    console.error('❌ Error: Admin username is required. Run interactively or supply --username=...');
-    process.exit(1);
-  }
-  if (!password || password.length < 8) {
-    console.error('❌ Error: Password must be at least 8 characters long.');
-    process.exit(1);
-  }
-  if (!email) {
-    email = 'admin@tefpc.or.tz';
-  }
-
-  console.log('🔒 Configuring administrator credentials...');
+  console.log('\n🔒 Hashing password with bcrypt (12 rounds)...');
   const saltRounds = 12;
   const passwordHash = bcrypt.hashSync(password, saltRounds);
 
@@ -85,13 +81,13 @@ async function main() {
   }
 
   console.log('--------------------------------------------------');
-  console.log(`Account:  ${username}`);
+  console.log(`Username: ${username}`);
   console.log(`Email:    ${email}`);
-  console.log('Password: [SECURELY HASHED & CONFIGURED — NOT PRINTED]');
+  console.log('Password: [SECURELY CONFIGURED — NOT LOGGED OR PRINTED]');
   console.log('--------------------------------------------------');
 }
 
 main().catch((err) => {
-  console.error('Bootstrap failed:', err);
+  console.error('\n❌ Admin bootstrap failed:', err);
   process.exit(1);
 });

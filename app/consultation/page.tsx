@@ -226,6 +226,24 @@ export default function ConsultationPage() {
                   <Loader2 className="w-4 h-4 animate-spin text-[#285748]" />
                   <span>Loading available services...</span>
                 </div>
+              ) : services.length === 0 ? (
+                <div className="p-8 bg-[#E9EDE4] border border-[#D9DCD2] rounded-sm text-center space-y-3">
+                  <p className="font-serif text-lg font-medium text-[#192B2A]">
+                    Public Bookings Currently Being Configured
+                  </p>
+                  <p className="text-xs sm:text-sm text-[#52605A] max-w-lg mx-auto leading-relaxed font-light">
+                    Consultation services, fee schedules, and appointment calendars are currently in provisional review and will be activated upon client schedule approval. For direct inquiries or policy requests, please contact the consultancy via the question form.
+                  </p>
+                  <div className="pt-2">
+                    <Link
+                      href="/ask"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#285748] text-[#F7F5EF] rounded hover:bg-[#1e4337] transition-colors"
+                    >
+                      <span>Submit an Inquiry</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {services.map((svc) => (

@@ -64,7 +64,6 @@ In your Railway Service → **Variables** tab, add the following variables:
 | `ADMIN_HOST` | `admin.tefpc.or.tz` | Hostname matched by host-aware routing middleware |
 | `DATABASE_PATH` | `/data/economist.db` | Points SQLite to the persistent Railway volume |
 | `UPLOAD_DIR` | `/data/uploads` | Points file uploads to the persistent Railway volume |
-| `ADMIN_SESSION_SECRET` | *(64-char random string)* | Cryptographic salt/key for session validation |
 | `SITE_TIMEZONE` | `Africa/Dar_es_Salaam` | Consultation and event timezone (EAT, UTC+3) |
 | `PENDING_BOOKING_EXPIRY_HOURS` | `24` | Auto-release window for unconfirmed pending bookings |
 | `SMTP_HOST` | *(client SMTP host)* | e.g. `smtp.mailgun.org` or client private mail server |
@@ -140,7 +139,7 @@ The platform's [`middleware.ts`](file:///c:/Users/PC/Documents/economist_website
 
 ### Step 5.1: Initializing Verified TEFPC Content into Production
 
-On a fresh deployment, the database schema is automatically created empty. To populate the verified TEFPC content (Dr. Simba's profile, publications, editorial articles, events, and consultation services) without copying local test data or demo records:
+On a fresh deployment, the database schema is automatically created empty. To populate verified TEFPC content without copying test data or overwriting future administrative edits:
 
 1. Open the container terminal:
    - **Via Railway Dashboard (Recommended):**  
@@ -151,49 +150,36 @@ On a fresh deployment, the database schema is automatically created empty. To po
    ```bash
    npm run prod:init-content
    ```
-3. **What this script does:**
-   - **Site Settings:** Idempotently sets Dr. Hamis Miraji Ally Simba's confirmed profile, bio, affiliations, qualifications, research interests, Rita Tower office address, and payment guidance. Keeps `contact_email` blank (unlisted) until official client email activation.
-   - **Academic Research:** Idempotently inserts/updates all 7 genuine publications with author names preserved exactly as published (*Hamisi Miraji Simba*), DOI links, years, and abstracts.
-   - **Editorial Insights:** Idempotently syncs the 3 editorial articles on inequality, energy security, and AfCFTA corridors.
-   - **Events:** Idempotently syncs the TEFPC Policy Roundtable and BOT Conference.
-   - **Consultation Services:** Idempotently syncs the 3 services (Academic Methodology, Macroeconomic Advisory, Country Briefing) and initializes Monday–Friday 09:00–17:00 availability rules.
-   - **Zero Leaks & Zero Demo Records:** Strictly sets `is_demo = 0`. Does **not** touch or copy `admin_users`, `admin_sessions`, `bookings`, `questions`, `subscribers`, or `email_logs`.
+3. **Strict Content Integrity & Safeguards:**
+   - **Site Settings:** Sets Dr. Hamis Miraji Ally Simba's confirmed profile, bio, affiliations, qualifications, research interests, and Rita Tower office address. Bank details, payment instructions, and `contact_email` are kept empty until officially supplied and activated. If site settings already exist, re-running initialization leaves them untouched.
+   - **Academic Research (7 Publications):** Imports bibliographic citations from the CV with verbatim author attributions (*Hamisi Miraji Simba* / *Hamisi Miraji Ally Simba*). Because abstracts and DOI links are not supplied in the CV, they are initialized with empty fields and saved in **`draft` (unpublished)** status for admin review.
+   - **Editorial Insights:** Initialized in **`draft` (unpublished)** status. No draft articles appear on the public site.
+   - **Events:** **Zero** events are published.
+   - **Consultation Services & Availability:** The 3 consultation services are imported with **`is_active = 0` (provisional)**. Public bookings remain disabled until the client approves the schedule and pricing in `/admin/consultation`.
+   - **Admin Edit Protection:** All record inserts use `ON CONFLICT(slug) DO NOTHING`. Re-running the script will **never** overwrite later admin edits, approved prices, or published articles.
+   - **Zero Visitor/User Leaks:** Does not copy or touch `admin_users`, `admin_sessions`, `bookings`, `questions`, `subscribers`, or `email_logs`.
 
 ### Step 5.2: How Associated Assets Reach Production
 
 - **Portraits and Public CV PDF:**  
-  The optimized web derivatives (`/portrait-dr-hamis-simba-card.jpg`, `/portrait-dr-hamis-simba-card.webp`, `/portrait-dr-hamis-simba.jpg`, `/portrait-dr-hamis-simba.webp`) and the generated public CV document (`/dr-hamis-simba-cv-public.pdf`) are tracked directly in Git under the [`public/`](file:///c:/Users/PC/Documents/economist_website/public) directory.  
+  The web derivatives (`/portrait-dr-hamis-simba-card.jpg`, `/portrait-dr-hamis-simba-card.webp`, `/portrait-dr-hamis-simba.jpg`, `/portrait-dr-hamis-simba.webp`) and public CV document (`/dr-hamis-simba-cv-public.pdf`) are tracked directly in Git under [`public/`](file:///c:/Users/PC/Documents/economist_website/public).  
   During deployment, Nixpacks compiles and bundles these files into the container image build. Next.js serves them statically and cache-efficiently without requiring any manual asset upload.
 - **Future Admin Uploads:**  
-  Any files uploaded via `/admin` in the future are saved to `/data/uploads` and served dynamically via [`app/uploads/[...file]/route.ts`](file:///c:/Users/PC/Documents/economist_website/app/uploads/[...file]/route.ts).
+  Any files uploaded via `/admin` in the future are saved to `/data/uploads` on the persistent volume and served dynamically via [`app/uploads/[...file]/route.ts`](file:///c:/Users/PC/Documents/economist_website/app/uploads/[...file]/route.ts).
 
-### Step 5.3: Bootstrapping the Admin Account
+### Step 5.3: Interactive Admin Account Bootstrap
 
-Never hardcode or commit administrator credentials to Git. Use one of two supported container methods:
+Never pass passwords in shell arguments or commit credentials to Git. Use the interactive terminal prompt:
 
-#### Option A: Interactive Bootstrap via Railway Web Terminal (Recommended)
-1. In the Railway Dashboard → Service → Active Deployment → **Terminal** tab:
+1. In the Railway Dashboard → Service → Active Deployment → **Terminal** tab (or via `railway ssh`):
    ```bash
    npm run admin:bootstrap
    ```
 2. The command will securely prompt:
    - Admin username (e.g. `simba_admin`)
-   - Admin email (e.g. `admin@tefpc.or.tz`)
-   - Secure password (minimum 10 characters)
-3. The password is hashed using bcrypt (cost factor 12) and inserted into `/data/economist.db`. Credentials are never printed in logs.
-
-#### Option B: Automated Bootstrap via Environment Variables
-1. In Railway Service → **Variables**, temporarily add:
-   ```env
-   ADMIN_BOOTSTRAP_USER=simba_admin
-   ADMIN_BOOTSTRAP_EMAIL=admin@tefpc.or.tz
-   ADMIN_BOOTSTRAP_PASSWORD=YourStrongTemporarySecretPassword123!
-   ```
-2. In Railway Dashboard Terminal (or via `railway ssh`):
-   ```bash
-   npm run admin:bootstrap
-   ```
-3. Once the account is created, **immediately delete** `ADMIN_BOOTSTRAP_PASSWORD` from Railway Variables.
+   - Admin notification email (e.g. `admin@tefpc.or.tz`)
+   - Secure admin password (minimum 10 characters)
+3. The password is hashed using bcrypt (cost factor 12) and inserted into `/data/economist.db`. Credentials are never echoed in logs or saved to shell command history.
 
 ---
 
@@ -235,10 +221,10 @@ Before sharing the live site with public visitors:
 
 1. [ ] **Persistent Volume Verification:** Confirm Railway volume is mounted to `/data`.
 2. [ ] **Fresh Startup Verification:** Verify the service starts and `/api/health` returns HTTP 200 with an empty, initialized schema.
-3. [ ] **Run Content Initialization:** Run `npm run prod:init-content` in the Railway Web Terminal to populate verified TEFPC content and publications.
-4. [ ] **Bootstrap Admin Account:** Run `npm run admin:bootstrap` in the Railway Web Terminal.
+3. [ ] **Run Content Initialization:** Run `npm run prod:init-content` in the Railway Web Terminal.
+4. [ ] **Bootstrap Admin Account:** Run `npm run admin:bootstrap` in the Railway Web Terminal and provide your chosen password interactively.
 5. [ ] **DNS Record Propagation:** Verify `admin.tefpc.or.tz` and `tefpc.or.tz` resolve to Railway's edge network.
 6. [ ] **Official Mailbox Setup:** Activate `info@tefpc.or.tz` with client mail provider. Once verified, configure it in `/admin/profile`.
 7. [ ] **Live SMTP Relay:** Supply verified production SMTP credentials in Railway Variables.
-8. [ ] **Bank & Payment Remittance:** Enter official CRDB / NMB corporate bank details and M-Pesa Till number via `/admin/profile`.
+8. [ ] **Payment Instructions & Booking Approval:** Enter official bank remittance details and review/activate consultation services via `/admin/consultation` when ready.
 9. [ ] **Legal Review:** Conduct local legal review of `/privacy` under the Tanzania Personal Data Protection Act (PDPA 2022).
