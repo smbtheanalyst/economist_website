@@ -709,7 +709,7 @@ test('28. Startup Schema Cleanliness: initSchema initializes schema without seed
   }
 });
 
-test('29. Production Content Initialization: Safe, repeatable import without copying sessions, bookings, or demo records', async () => {
+test('29. Production Content Initialization: Startup sequence on fresh database, factual author preservation, and admin edit preservation', async () => {
   const fs = await import('node:fs');
   const path = await import('node:path');
   const { DatabaseSync } = await import('node:sqlite');
@@ -720,31 +720,73 @@ test('29. Production Content Initialization: Safe, repeatable import without cop
     fs.rmSync(testImportDbPath, { force: true });
   }
 
-  // Run the production content initialization procedure
+  // STEP 1: Simulate real application startup on an empty database (triggering getSiteSettings() on warmup)
+  execSync('npx tsx -e "import(\'./lib/data\').then(m => m.getSiteSettings());"', {
+    env: { ...process.env, DATABASE_PATH: testImportDbPath }
+  });
+
+  const startupDb = new DatabaseSync(testImportDbPath);
+  const startupRow = startupDb.prepare('SELECT biography, qualifications_json FROM site_settings WHERE id = 1').get() as {
+    biography: string;
+    qualifications_json: string;
+  };
+  assert.equal(startupRow.biography, '', 'Startup default row has empty biography');
+  startupDb.close();
+
+  // STEP 2: Run production content initialization procedure on the running application database
   execSync('node scripts/init-production-content.mjs', {
     env: { ...process.env, DATABASE_PATH: testImportDbPath }
   });
 
   const verifyDb = new DatabaseSync(testImportDbPath);
 
-  // Verify site settings populated with confirmed researcher name and empty payment/email
-  const settings = verifyDb.prepare('SELECT researcher_name, professional_title, is_demo, contact_email, payment_instructions FROM site_settings WHERE id = 1').get() as {
+  // Verify site settings populated despite the pre-existing startup default row
+  const settings = verifyDb.prepare('SELECT researcher_name, professional_title, biography, qualifications_json, affiliations_json, is_demo, contact_email, payment_instructions FROM site_settings WHERE id = 1').get() as {
     researcher_name: string;
     professional_title: string;
+    biography: string;
+    qualifications_json: string;
+    affiliations_json: string;
     is_demo: number;
     contact_email: string;
     payment_instructions: string;
   };
   assert.equal(settings.researcher_name, 'Dr. Hamis Miraji Ally Simba');
+  assert.ok(settings.biography.length > 50, 'TEFPC biography must be populated and not skipped');
   assert.equal(settings.is_demo, 0);
   assert.equal(settings.contact_email, '');
   assert.equal(settings.payment_instructions, '');
 
-  // Verify research publications (7 genuine citations, all unpublished drafts without unsupported abstracts/DOIs)
-  const pubCount = verifyDb.prepare('SELECT count(*) as count FROM research WHERE is_demo = 0').get() as { count: number };
-  assert.equal(pubCount.count, 7, 'Must import 7 genuine research publications');
-  const publishedPubs = verifyDb.prepare(`SELECT count(*) as count FROM research WHERE status = 'published'`).get() as { count: number };
-  assert.equal(publishedPubs.count, 0, 'Unsupported abstracts and DOIs must keep research unpublished');
+  // Verify ambiguous education and employment details marked for client review
+  assert.ok(settings.qualifications_json.includes('Pending Client Review'), 'Ambiguous education (2024-Proc) must be marked for review');
+  assert.ok(settings.affiliations_json.includes('Pending Client Review'), 'Ambiguous employment (ESRF resuming) must be marked for review');
+
+  // Verify research publications (7 citations, author strings preserved verbatim without expansion/normalization)
+  const pubs = verifyDb.prepare('SELECT title, authors, status, abstract, doi_url FROM research WHERE is_demo = 0 ORDER BY year DESC').all() as Array<{
+    title: string;
+    authors: string;
+    status: string;
+    abstract: string;
+    doi_url: string;
+  }>;
+  assert.equal(pubs.length, 7, 'Must import 7 genuine research publications');
+
+  // Check verbatim CV author strings
+  const authorsList = pubs.map(p => p.authors);
+  assert.ok(authorsList.includes('Miraji Ally Simba, H., Radulescu, M., Güneş, H., Şit, A., Karadağ, H., & Şit, M.'), 'Author string 1 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('Karadağ, H., Güneş, H., & Ally-Simba, H. M.'), 'Author string 2 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('Miraji, S. H., & Nyaburi, N. I.'), 'Author string 3 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('Şit, A., Radulescu, M., Güneş, H., Simba, H. M. A., Şit, M., & Karadağ, H.'), 'Author string 4 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('Güneş, H., Simba, H. M. A., Karadağ, H., & Şit, M.'), 'Author string 5 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('Simba, H. M. A., & Oztek, M. F.'), 'Author string 6 must be preserved verbatim from CV');
+  assert.ok(authorsList.includes('SIMBA, H. M. A.'), 'Author string 7 must be preserved verbatim from CV');
+
+  // All 7 must be unpublished drafts with empty abstracts and DOIs
+  for (const p of pubs) {
+    assert.equal(p.status, 'draft', `Paper "${p.title}" must be draft`);
+    assert.equal(p.abstract, '', 'Abstract must be empty string until client supplied');
+    assert.equal(p.doi_url, '', 'DOI must be empty string until client supplied');
+  }
 
   // Verify insights (all unpublished drafts)
   const insightCount = verifyDb.prepare('SELECT count(*) as count FROM insights WHERE is_demo = 0').get() as { count: number };
@@ -775,9 +817,9 @@ test('29. Production Content Initialization: Safe, repeatable import without cop
   assert.equal(questions.count, 0, 'Must NOT copy local questions');
   assert.equal(subscribers.count, 0, 'Must NOT copy local subscribers');
 
-  // Simulate later admin edits:
+  // STEP 3: Simulate genuine later admin edits:
   // 1. Admin updates bio in site_settings
-  verifyDb.prepare(`UPDATE site_settings SET biography = 'Admin Customized Biography' WHERE id = 1`).run();
+  verifyDb.prepare(`UPDATE site_settings SET biography = 'Admin Custom Edits 2026' WHERE id = 1`).run();
   // 2. Admin approves and publishes a research paper with an official abstract
   const firstPaper = verifyDb.prepare(`SELECT slug FROM research LIMIT 1`).get() as { slug: string };
   verifyDb.prepare(`UPDATE research SET status = 'published', abstract = 'Official Client Approved Abstract' WHERE slug = ?`).run(firstPaper.slug);
@@ -785,14 +827,14 @@ test('29. Production Content Initialization: Safe, repeatable import without cop
   const firstService = verifyDb.prepare(`SELECT slug FROM consultation_services LIMIT 1`).get() as { slug: string };
   verifyDb.prepare(`UPDATE consultation_services SET is_active = 1, price_amount = 250 WHERE slug = ?`).run(firstService.slug);
 
-  // Re-run initialization to test preservation of admin edits
+  // STEP 4: Re-run initialization to test preservation of admin edits
   execSync('node scripts/init-production-content.mjs', {
     env: { ...process.env, DATABASE_PATH: testImportDbPath }
   });
 
   // Verify later admin edits WERE NOT overwritten
   const checkSettings = verifyDb.prepare('SELECT biography FROM site_settings WHERE id = 1').get() as { biography: string };
-  assert.equal(checkSettings.biography, 'Admin Customized Biography', 'Rerunning init MUST NOT overwrite admin bio edits');
+  assert.equal(checkSettings.biography, 'Admin Custom Edits 2026', 'Rerunning init MUST NOT overwrite admin bio edits');
 
   const checkPaper = verifyDb.prepare('SELECT status, abstract FROM research WHERE slug = ?').get(firstPaper.slug) as { status: string; abstract: string };
   assert.equal(checkPaper.status, 'published', 'Rerunning init MUST NOT overwrite admin published status');

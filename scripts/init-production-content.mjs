@@ -238,14 +238,19 @@ async function main() {
 
   const seed = JSON.parse(fs.readFileSync(seedFilePath, 'utf8'));
 
-  // 1. Site Settings (Insert once if missing; preserve any later admin modifications)
+  // 1. Site Settings (Insert or personalize startup default row; preserve genuine later admin edits)
   console.log('\n[1/5] Applying verified TEFPC site and profile settings...');
   const s = seed.site_settings;
-  const existingSettings = db.prepare('SELECT id FROM site_settings WHERE id = 1').get();
+  const existingSettings = db.prepare('SELECT * FROM site_settings WHERE id = 1').get();
 
-  if (existingSettings) {
-    console.log(`  ℹ Site settings already exist (id = 1). Preserving existing settings and later admin edits.`);
-  } else {
+  // An automatically created default row from getSiteSettings() has empty biography and empty/default qualifications array
+  const isUnpersonalizedDefault = !existingSettings || (
+    (!existingSettings.biography || existingSettings.biography.trim() === '') &&
+    (!existingSettings.qualifications_json || existingSettings.qualifications_json === '[]') &&
+    (!existingSettings.affiliations_json || existingSettings.affiliations_json === '[]')
+  );
+
+  if (!existingSettings) {
     db.prepare(`
       INSERT INTO site_settings (
         id, researcher_name, professional_title, portrait_url, biography,
@@ -278,7 +283,50 @@ async function main() {
       s.payment_instructions || '',
       s.social_links_json || '[]'
     );
-    console.log(`  ✓ Initialized site settings for "${s.researcher_name}".`);
+    console.log(`  ✓ Inserted initial site settings for "${s.researcher_name}".`);
+  } else if (isUnpersonalizedDefault) {
+    db.prepare(`
+      UPDATE site_settings SET
+        researcher_name = ?,
+        professional_title = ?,
+        portrait_url = ?,
+        biography = ?,
+        qualifications_json = ?,
+        research_interests_json = ?,
+        affiliations_json = ?,
+        cv_url = ?,
+        hero_headline = ?,
+        hero_intro = ?,
+        contact_email = ?,
+        office_address = ?,
+        office_instructions = ?,
+        online_instructions = ?,
+        payment_instructions = ?,
+        social_links_json = ?,
+        is_demo = 0,
+        updated_at = datetime('now')
+      WHERE id = 1
+    `).run(
+      s.researcher_name,
+      s.professional_title,
+      s.portrait_url,
+      s.biography,
+      s.qualifications_json,
+      s.research_interests_json,
+      s.affiliations_json,
+      s.cv_url,
+      s.hero_headline,
+      s.hero_intro,
+      s.contact_email || '',
+      s.office_address,
+      s.office_instructions,
+      s.online_instructions,
+      s.payment_instructions || '',
+      s.social_links_json || '[]'
+    );
+    console.log(`  ✓ Initialized startup default row with verified TEFPC biography, qualifications, and affiliations.`);
+  } else {
+    console.log(`  ℹ Site settings already personalized (id = 1). Preserving existing settings and later admin edits.`);
   }
 
   // 2. Research Publications (Insert if missing; ON CONFLICT DO NOTHING to preserve admin edits)
