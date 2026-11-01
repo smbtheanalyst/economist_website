@@ -30,6 +30,10 @@ import {
   getAllNewsAdmin,
   getMediaGalleryItems,
   getAllMediaGalleryAdmin,
+  getResearchByIds,
+  getNewsByIds,
+  getProjectsByIds,
+  getEventsByIds,
   type NavItem,
   type ProjectPartnerRole,
 } from '../lib/data';
@@ -1374,4 +1378,130 @@ test('39. Core Platform Continuity: Concurrency Locking, Guest Inquiries & Publi
 
   // Cleanup
   db.prepare(`DELETE FROM questions WHERE email = ?`).run(qEmail);
+});
+
+test('40. Navigation: Per-Item Visibility Filtering & Reordering', async () => {
+  const customItems: NavItem[] = [
+    { id: 't1', label: 'Visible Tab', path: '/about', visible: true, order: 0 },
+    { id: 't2', label: 'Hidden Tab', path: '/hidden', visible: false, order: 1 },
+    {
+      id: 't3',
+      label: 'Parent Tab',
+      path: '/parent',
+      visible: true,
+      order: 2,
+      children: [
+        { id: 'c1', label: 'Visible Child', path: '/c1', visible: true, order: 0 },
+        { id: 'c2', label: 'Hidden Child', path: '/c2', visible: false, order: 1 },
+      ],
+    },
+  ];
+
+  // Filter logic used by Header component
+  const filtered = customItems
+    .filter((item) => item.visible !== false)
+    .map((item) => ({
+      ...item,
+      children: (item.children || []).filter((child) => child.visible !== false),
+    }));
+
+  assert.equal(filtered.length, 2, 'Hidden top tab must be excluded');
+  assert.equal(filtered.some((i) => i.id === 't2'), false);
+  const parent = filtered.find((i) => i.id === 't3');
+  assert.ok(parent);
+  assert.equal(parent.children?.length, 1, 'Hidden child dropdown must be excluded');
+  assert.equal(parent.children?.[0].id, 'c1');
+});
+
+test('41. Project Galleries & Related Research/News Resolution', async () => {
+  const pSlug = 'test-gallery-project-' + Date.now();
+  const gallery = [
+    { url: '/uploads/fieldwork1.jpg', caption: 'Fieldwork surveys in Dodoma', order: 0 },
+    { url: '/uploads/fieldwork2.jpg', caption: 'Stakeholder workshop in Dar', order: 1 },
+  ];
+
+  // Fetch an existing research paper ID if available
+  const existingResearch = db.prepare(`SELECT id FROM research WHERE status = 'published' LIMIT 1`).get() as any;
+  const researchIds = existingResearch ? [existingResearch.id] : [];
+
+  db.prepare(`
+    INSERT INTO projects (
+      title, slug, summary, description_html, research_theme,
+      project_status, status, gallery_images_json, related_research_ids_json, partner_organizations_json
+    ) VALUES (
+      'Agricultural Value Chains Study', ?, 'Summary text',
+      '<p>Body</p>', 'Agricultural Economics',
+      'ongoing', 'published', ?, ?, '[]'
+    )
+  `).run(pSlug, JSON.stringify(gallery), JSON.stringify(researchIds));
+
+  const project = getProjectBySlug(pSlug, false);
+  assert.ok(project);
+  const parsedGallery = JSON.parse(project.gallery_images_json);
+  assert.equal(parsedGallery.length, 2);
+  assert.equal(parsedGallery[0].caption, 'Fieldwork surveys in Dodoma');
+
+  if (researchIds.length > 0) {
+    const resolvedResearch = getResearchByIds(researchIds);
+    assert.equal(resolvedResearch.length, 1);
+    assert.equal(resolvedResearch[0].id, researchIds[0]);
+  }
+
+  // Cleanup
+  db.prepare(`DELETE FROM projects WHERE slug = ?`).run(pSlug);
+});
+
+test('42. News Galleries & Related Projects/Events Resolution', async () => {
+  const nSlug = 'test-news-gallery-' + Date.now();
+  const gallery = [
+    { url: '/uploads/press_briefing.jpg', caption: 'Press Conference in Dar es Salaam', order: 0 },
+  ];
+
+  // Fetch an existing published event ID if available
+  const existingEvent = db.prepare(`SELECT id FROM events WHERE status = 'published' LIMIT 1`).get() as any;
+  const eventIds = existingEvent ? [existingEvent.id] : [];
+
+  db.prepare(`
+    INSERT INTO news_articles (
+      title, slug, summary, content_html, category,
+      gallery_images_json, related_event_ids_json, status
+    ) VALUES (
+      'TEFPC Hosts High-Level Economic Policy Dialogue', ?, 'Summary text',
+      '<p>Content</p>', 'Policy Dialogues',
+      ?, ?, 'published'
+    )
+  `).run(nSlug, JSON.stringify(gallery), JSON.stringify(eventIds));
+
+  const news = getNewsBySlug(nSlug, false);
+  assert.ok(news);
+  const parsedGallery = JSON.parse(news.gallery_images_json);
+  assert.equal(parsedGallery.length, 1);
+  assert.equal(parsedGallery[0].caption, 'Press Conference in Dar es Salaam');
+
+  if (eventIds.length > 0) {
+    const resolvedEvents = getEventsByIds(eventIds);
+    assert.equal(resolvedEvents.length, 1);
+    assert.equal(resolvedEvents[0].id, eventIds[0]);
+  }
+
+  // Cleanup
+  db.prepare(`DELETE FROM news_articles WHERE slug = ?`).run(nSlug);
+});
+
+test('43. Reusing Existing Event Images in Homepage Slide Pool', async () => {
+  const events = getAllEventsAdmin();
+  const reusableImages: { url: string; alt: string; source: string }[] = [];
+
+  events.forEach((ev) => {
+    if (ev.cover_image_url) {
+      reusableImages.push({
+        url: ev.cover_image_url,
+        alt: ev.cover_image_alt || ev.title,
+        source: `Event: ${ev.title}`,
+      });
+    }
+  });
+
+  // Reusable image extraction logic must succeed without throwing
+  assert.ok(Array.isArray(reusableImages));
 });

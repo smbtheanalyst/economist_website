@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { getAllNewsAdmin, getNewsBySlug } from '@/lib/data';
+import { getAllNewsAdmin, getNewsBySlug, getAllProjectsAdmin, getAllEventsAdmin } from '@/lib/data';
 import { sanitizeHtml, isValidSlug, isReservedSlug } from '@/lib/sanitize';
 
 export async function GET() {
@@ -11,7 +11,9 @@ export async function GET() {
   }
 
   const news = getAllNewsAdmin();
-  return NextResponse.json({ news });
+  const availableProjects = getAllProjectsAdmin().map((p) => ({ id: p.id, title: p.title, slug: p.slug }));
+  const availableEvents = getAllEventsAdmin().map((e) => ({ id: e.id, title: e.title, slug: e.slug }));
+  return NextResponse.json({ news, availableProjects, availableEvents });
 }
 
 export async function POST(request: Request) {

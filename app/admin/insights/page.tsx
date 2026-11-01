@@ -44,9 +44,12 @@ export default function AdminNewsAndInsightsPage() {
 
   // News State
   const [newsList, setNewsList] = useState<NewsArticleItem[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [availableEvents, setAvailableEvents] = useState<{ id: number; title: string; slug: string }[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
   const [editingNews, setEditingNews] = useState<Partial<NewsArticleItem> | null>(null);
   const [savingNews, setSavingNews] = useState(false);
+  const [isUploadingNewsGallery, setIsUploadingNewsGallery] = useState(false);
 
   // Insights State
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -64,6 +67,8 @@ export default function AdminNewsAndInsightsPage() {
       .then((res) => res.json())
       .then((data) => {
         setNewsList(data.news || []);
+        setAvailableProjects(data.availableProjects || []);
+        setAvailableEvents(data.availableEvents || []);
         setLoadingNews(false);
       })
       .catch(() => {
@@ -90,6 +95,40 @@ export default function AdminNewsAndInsightsPage() {
     fetchNews();
     fetchInsights();
   }, []);
+
+  const handleOpenCreateNews = () => {
+    setEditingNews({
+      title: '',
+      slug: '',
+      summary: '',
+      content_html: '',
+      category: 'Institutional News',
+      published_date: new Date().toISOString().split('T')[0],
+      status: 'draft',
+      is_featured: 0,
+      cover_image_url: '',
+      cover_image_alt: '',
+      gallery_images: [],
+      related_project_ids: [],
+      related_event_ids: [],
+    } as any);
+  };
+
+  const handleOpenEditNews = (item: NewsArticleItem) => {
+    let gallery_images: { url: string; caption?: string }[] = [];
+    let related_project_ids: number[] = [];
+    let related_event_ids: number[] = [];
+    try { gallery_images = JSON.parse(item.gallery_images_json || '[]'); } catch {}
+    try { related_project_ids = JSON.parse(item.related_project_ids_json || '[]'); } catch {}
+    try { related_event_ids = JSON.parse(item.related_event_ids_json || '[]'); } catch {}
+
+    setEditingNews({
+      ...item,
+      gallery_images,
+      related_project_ids,
+      related_event_ids,
+    } as any);
+  };
 
   // News Handlers
   const handleSaveNews = async (e: React.FormEvent) => {
@@ -226,18 +265,7 @@ export default function AdminNewsAndInsightsPage() {
         {activeTab === 'news' ? (
           <button
             type="button"
-            onClick={() =>
-              setEditingNews({
-                title: '',
-                slug: '',
-                summary: '',
-                content_html: '',
-                category: 'Institutional News',
-                published_date: new Date().toISOString().split('T')[0],
-                status: 'draft',
-                is_featured: 0,
-              })
-            }
+            onClick={handleOpenCreateNews}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#285748] text-[#F7F5EF] rounded hover:bg-[#1e4337] transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -400,7 +428,7 @@ export default function AdminNewsAndInsightsPage() {
 
                           <button
                             type="button"
-                            onClick={() => setEditingNews(item)}
+                            onClick={() => handleOpenEditNews(item)}
                             className="p-1 text-gray-600 hover:text-[#285748]"
                             title="Edit"
                           >
@@ -629,6 +657,171 @@ export default function AdminNewsAndInsightsPage() {
                     className="w-full p-2 border border-[#D9DCD2] rounded text-xs"
                     placeholder="Accessibility description"
                   />
+                </div>
+              </div>
+
+              {/* News Photo Gallery */}
+              <div className="bg-[#F7F5EF] p-4 rounded border border-[#D9DCD2] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-serif font-bold text-sm text-[#192B2A] block">
+                      News Photo Gallery
+                    </span>
+                    <span className="text-[11px] text-[#52605A]">
+                      Upload event photos, press conference stills, or field pictures.
+                    </span>
+                  </div>
+                  <label className="cursor-pointer px-3 py-1.5 bg-[#285748] text-white rounded text-xs font-semibold hover:bg-[#1e4337] transition-colors inline-flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isUploadingNewsGallery ? 'Uploading...' : 'Add Gallery Photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isUploadingNewsGallery}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setIsUploadingNewsGallery(true);
+                        try {
+                          const body = new FormData();
+                          body.append('file', file);
+                          const res = await fetch('/api/admin/upload', { method: 'POST', body });
+                          const json = await res.json();
+                          if (res.ok && json.url) {
+                            const current = (editingNews as any).gallery_images || [];
+                            setEditingNews({
+                              ...editingNews,
+                              gallery_images: [...current, { url: json.url, caption: '', order: current.length }],
+                            } as any);
+                          } else {
+                            alert(json.error || 'Upload failed');
+                          }
+                        } catch {
+                          alert('Upload failed');
+                        } finally {
+                          setIsUploadingNewsGallery(false);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {(!((editingNews as any).gallery_images) || (editingNews as any).gallery_images.length === 0) ? (
+                  <p className="text-xs text-[#52605A] italic py-1">No gallery photos added yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {(editingNews as any).gallery_images.map((img: any, i: number) => (
+                      <div key={i} className="flex gap-2 p-2 bg-white rounded border border-[#D9DCD2] items-center">
+                        <div className="relative w-14 h-14 rounded overflow-hidden shrink-0 border border-[#D9DCD2] bg-gray-50">
+                          <Image src={img.url} alt={img.caption || 'News gallery image'} fill className="object-cover" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="text"
+                            value={img.caption || ''}
+                            onChange={(e) => {
+                              const newImages = [...(editingNews as any).gallery_images];
+                              newImages[i].caption = e.target.value;
+                              setEditingNews({ ...editingNews, gallery_images: newImages } as any);
+                            }}
+                            placeholder="Photo caption / context..."
+                            className="w-full p-1 text-xs border border-[#D9DCD2] rounded text-[#192B2A]"
+                          />
+                          <p className="text-[10px] text-gray-400 font-mono truncate">{img.url}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = (editingNews as any).gallery_images.filter((_: any, idx: number) => idx !== i);
+                            setEditingNews({ ...editingNews, gallery_images: newImages } as any);
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Remove photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Related Projects & Related Events */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#D9DCD2]">
+                {/* Related Projects */}
+                <div className="bg-[#E9EDE4] p-3 rounded border border-[#D9DCD2] space-y-2">
+                  <span className="font-serif font-bold text-xs text-[#285748] block">
+                    Link Related Institutional Projects
+                  </span>
+                  <span className="text-[11px] text-[#52605A] block">
+                    Select projects associated with this announcement:
+                  </span>
+                  {availableProjects.length === 0 ? (
+                    <p className="text-[11px] text-gray-500 italic">No published projects available to link.</p>
+                  ) : (
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 bg-white p-2 rounded border border-[#D9DCD2]">
+                      {availableProjects.map((p) => {
+                        const currentIds = (editingNews as any).related_project_ids || [];
+                        const isChecked = currentIds.includes(p.id);
+                        return (
+                          <label key={p.id} className="flex items-center gap-2 text-xs text-[#192B2A] cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditingNews({ ...editingNews, related_project_ids: [...currentIds, p.id] } as any);
+                                } else {
+                                  setEditingNews({ ...editingNews, related_project_ids: currentIds.filter((id: number) => id !== p.id) } as any);
+                                }
+                              }}
+                              className="rounded text-[#285748] focus:ring-[#285748]"
+                            />
+                            <span className="truncate">{p.title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Related Events */}
+                <div className="bg-[#E9EDE4] p-3 rounded border border-[#D9DCD2] space-y-2">
+                  <span className="font-serif font-bold text-xs text-[#285748] block">
+                    Link Related Economics Events
+                  </span>
+                  <span className="text-[11px] text-[#52605A] block">
+                    Select dialogue sessions or conferences linked to this news:
+                  </span>
+                  {availableEvents.length === 0 ? (
+                    <p className="text-[11px] text-gray-500 italic">No events available to link.</p>
+                  ) : (
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 bg-white p-2 rounded border border-[#D9DCD2]">
+                      {availableEvents.map((ev) => {
+                        const currentIds = (editingNews as any).related_event_ids || [];
+                        const isChecked = currentIds.includes(ev.id);
+                        return (
+                          <label key={ev.id} className="flex items-center gap-2 text-xs text-[#192B2A] cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditingNews({ ...editingNews, related_event_ids: [...currentIds, ev.id] } as any);
+                                } else {
+                                  setEditingNews({ ...editingNews, related_event_ids: currentIds.filter((id: number) => id !== ev.id) } as any);
+                                }
+                              }}
+                              className="rounded text-[#285748] focus:ring-[#285748]"
+                            />
+                            <span className="truncate">{ev.title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

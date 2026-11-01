@@ -17,8 +17,16 @@ import {
   Award,
   Layers,
   Handshake,
+  BookOpen,
+  Newspaper,
+  Camera,
 } from 'lucide-react';
-import { getProjectBySlug, type ProjectPartnerRole } from '@/lib/data';
+import {
+  getProjectBySlug,
+  getResearchByIds,
+  getNewsByIds,
+  type ProjectPartnerRole,
+} from '@/lib/data';
 
 interface ProjectPageProps {
   params: Promise<{ slug: string }>;
@@ -56,12 +64,21 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
   let outputs: string[] = [];
   let outcomes: string[] = [];
   let partners: ProjectPartnerRole[] = [];
+  let galleryImages: { url: string; caption?: string }[] = [];
+  let relatedResearchIds: number[] = [];
+  let relatedNewsIds: number[] = [];
 
   try { objectives = JSON.parse(project.objectives_json); } catch {}
   try { activities = JSON.parse(project.activities_json); } catch {}
   try { outputs = JSON.parse(project.outputs_json); } catch {}
   try { outcomes = JSON.parse(project.outcomes_json); } catch {}
   try { partners = JSON.parse(project.partner_organizations_json); } catch {}
+  try { galleryImages = JSON.parse(project.gallery_images_json); } catch {}
+  try { relatedResearchIds = JSON.parse(project.related_research_ids_json); } catch {}
+  try { relatedNewsIds = JSON.parse(project.related_news_ids_json); } catch {}
+
+  const relatedResearch = getResearchByIds(relatedResearchIds);
+  const relatedNews = getNewsByIds(relatedNewsIds);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-10">
@@ -259,6 +276,115 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
             className="prose prose-stone max-w-none text-[#192B2A] leading-relaxed prose-headings:font-serif prose-headings:text-[#192B2A] prose-a:text-[#285748] prose-a:underline"
             dangerouslySetInnerHTML={{ __html: project.description_html }}
           />
+        </div>
+      )}
+
+      {/* Project Photo Gallery */}
+      {galleryImages.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-[#D9DCD2]">
+          <div className="flex items-center gap-2">
+            <Camera className="w-5 h-5 text-[#285748]" />
+            <h3 className="font-serif font-bold text-xl text-[#192B2A]">
+              Project Photographic Gallery
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {galleryImages.map((img, i) => (
+              <div key={i} className="group rounded-md overflow-hidden border border-[#D9DCD2] bg-white shadow-sm space-y-2 pb-2">
+                <div className="relative aspect-[4/3] w-full bg-[#E9EDE4] overflow-hidden">
+                  <Image
+                    src={img.url}
+                    alt={img.caption || `Project image #${i + 1}`}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                </div>
+                {img.caption && (
+                  <p className="text-xs text-[#52605A] px-3 line-clamp-2">
+                    {img.caption}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Related Research Publications */}
+      {relatedResearch.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-[#D9DCD2]">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#285748]" />
+            <h3 className="font-serif font-bold text-xl text-[#192B2A]">
+              Related Research Publications & Policy Briefs
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {relatedResearch.map((res) => (
+              <Link
+                key={res.id}
+                href={`/research/${res.slug}`}
+                className="group block p-4 bg-[#F7F5EF] border border-[#D9DCD2] rounded-md hover:border-[#285748] hover:bg-white transition-all space-y-2"
+              >
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="px-2 py-0.5 rounded font-semibold bg-[#E9EDE4] text-[#285748]">
+                    {res.publication_type}
+                  </span>
+                  <span className="text-gray-500">{res.year}</span>
+                </div>
+                <h4 className="font-serif font-bold text-sm text-[#192B2A] group-hover:text-[#285748] transition-colors line-clamp-2">
+                  {res.title}
+                </h4>
+                {res.authors && (
+                  <p className="text-xs text-[#52605A] line-clamp-1 italic">
+                    By {res.authors}
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Related Institutional News */}
+      {relatedNews.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-[#D9DCD2]">
+          <div className="flex items-center gap-2">
+            <Newspaper className="w-5 h-5 text-[#285748]" />
+            <h3 className="font-serif font-bold text-xl text-[#192B2A]">
+              Related Institutional News & Policy Dialogues
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {relatedNews.map((news) => (
+              <Link
+                key={news.id}
+                href={`/news/${news.slug}`}
+                className="group block p-4 bg-white border border-[#D9DCD2] rounded-md hover:border-[#285748] hover:shadow-sm transition-all space-y-2"
+              >
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="px-2 py-0.5 rounded font-semibold bg-[#E9EDE4] text-[#285748]">
+                    {news.category}
+                  </span>
+                  <span className="text-gray-500">
+                    {new Date(news.published_date).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <h4 className="font-serif font-bold text-sm text-[#192B2A] group-hover:text-[#285748] transition-colors line-clamp-2">
+                  {news.title}
+                </h4>
+                {news.summary && (
+                  <p className="text-xs text-[#52605A] line-clamp-2">
+                    {news.summary}
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

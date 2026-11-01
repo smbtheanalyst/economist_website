@@ -529,6 +529,34 @@ export function getAllProjectsAdmin(): ProjectItem[] {
   return db.prepare(`SELECT * FROM projects ORDER BY created_at DESC`).all() as unknown as ProjectItem[];
 }
 
+export function getResearchByIds(ids: number[]): ResearchItem[] {
+  if (!ids || ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM research WHERE id IN (${placeholders}) AND status = 'published'`).all(...ids) as unknown as ResearchItem[];
+}
+
+export function getNewsByIds(ids: number[]): NewsArticleItem[] {
+  if (!ids || ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM news_articles WHERE id IN (${placeholders}) AND status = 'published'`).all(...ids) as unknown as NewsArticleItem[];
+}
+
+export function getProjectsByIds(ids: number[]): ProjectItem[] {
+  if (!ids || ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM projects WHERE id IN (${placeholders}) AND status = 'published'`).all(...ids) as unknown as ProjectItem[];
+}
+
+export function getEventsByIds(ids: number[]): EventItem[] {
+  if (!ids || ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM events WHERE id IN (${placeholders}) AND status = 'published'`).all(...ids) as unknown as EventItem[];
+}
+
 // ==========================================
 // PARTNERS
 // ==========================================

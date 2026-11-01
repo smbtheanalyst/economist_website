@@ -17,6 +17,7 @@ import {
   UploadCloud,
   ChevronRight,
   ChevronDown,
+  GripVertical,
 } from 'lucide-react';
 
 interface NavItemUI {
@@ -41,6 +42,13 @@ export default function NavigationAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Drag and drop state
+  const [draggedTopIndex, setDraggedTopIndex] = useState<number | null>(null);
+  const [draggedChild, setDraggedChild] = useState<{ parentIndex: number; childIndex: number } | null>(null);
+  const [dragOverTopIndex, setDragOverTopIndex] = useState<number | null>(null);
+  const [previewDropdownId, setPreviewDropdownId] = useState<string | null>(null);
+  const [showLivePreview, setShowLivePreview] = useState(true);
 
   // Edit / Add modal state
   const [editingItem, setEditingItem] = useState<{
@@ -140,6 +148,37 @@ export default function NavigationAdminPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // HTML5 Drag and drop reordering
+  const handleDropTop = (targetIndex: number) => {
+    if (draggedTopIndex === null || draggedTopIndex === targetIndex) {
+      setDraggedTopIndex(null);
+      setDragOverTopIndex(null);
+      return;
+    }
+    const newItems = [...draftItems];
+    const [moved] = newItems.splice(draggedTopIndex, 1);
+    newItems.splice(targetIndex, 0, moved);
+    newItems.forEach((it, i) => (it.order = i));
+    setDraftItems(newItems);
+    setDraggedTopIndex(null);
+    setDragOverTopIndex(null);
+  };
+
+  const handleDropChild = (parentIndex: number, targetIndex: number) => {
+    if (!draggedChild || draggedChild.parentIndex !== parentIndex || draggedChild.childIndex === targetIndex) {
+      setDraggedChild(null);
+      return;
+    }
+    const newItems = [...draftItems];
+    const children = [...(newItems[parentIndex].children || [])];
+    const [moved] = children.splice(draggedChild.childIndex, 1);
+    children.splice(targetIndex, 0, moved);
+    children.forEach((c, i) => (c.order = i));
+    newItems[parentIndex].children = children;
+    setDraftItems(newItems);
+    setDraggedChild(null);
   };
 
   // Reorder top level
@@ -341,70 +380,195 @@ export default function NavigationAdminPage() {
             </span>
             <p className="text-[#52605A]">
               {hasUnpublishedChanges
-                ? 'You have pending navigation changes. Click "Publish to Live Site" to update the public menu.'
+                ? 'You have pending navigation changes. Drag to reorder, toggle visibility, and test in the live preview below before publishing.'
                 : 'The published navigation on tefpc.or.tz matches this configuration.'}
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            setEditingItem({
-              parentId: null,
-              item: {
-                id: `nav-${Date.now()}`,
-                label: '',
-                path: '/',
-                visible: true,
-                order: draftItems.length,
-                children: [],
-              },
-              isNew: true,
-            })
-          }
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#285748] text-white font-semibold rounded text-xs hover:bg-[#1e4337]"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Add Top-Level Item</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowLivePreview(!showLivePreview)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#D9DCD2] text-[#285748] font-semibold rounded text-xs hover:bg-[#F7F5EF]"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>{showLivePreview ? 'Hide Live Preview' : 'Show Live Preview'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setEditingItem({
+                parentId: null,
+                item: {
+                  id: `nav-${Date.now()}`,
+                  label: '',
+                  path: '/',
+                  visible: true,
+                  order: draftItems.length,
+                  children: [],
+                },
+                isNew: true,
+              })
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#285748] text-white font-semibold rounded text-xs hover:bg-[#1e4337]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Top-Level Item</span>
+          </button>
+        </div>
       </div>
+
+      {/* Live Preview Before Publishing */}
+      {showLivePreview && (
+        <div className="bg-[#192B2A] text-white p-4 rounded-md shadow-md border border-[#285748] space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#285748]/70 text-xs gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="font-serif font-bold text-sm tracking-wide text-[#F7F5EF]">
+                Live Draft Navigation Preview
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#285748] text-white">
+                Pre-Publish Verification
+              </span>
+            </div>
+            <span className="text-gray-300 text-[11px]">
+              Interactive simulation of tefpc.or.tz header. Hidden items are excluded.
+            </span>
+          </div>
+
+          {/* Simulated Header Navigation Bar */}
+          <div className="bg-[#F7F5EF] text-[#192B2A] rounded p-3 border border-[#D9DCD2] flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="font-serif text-lg font-bold text-[#285748]">TEFPC</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#52605A] font-medium border-l border-[#D9DCD2] pl-2 hidden sm:inline">
+                Policy & Economic Advisory
+              </span>
+            </div>
+
+            <nav className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs font-medium">
+              {draftItems
+                .filter((it) => it.visible !== false)
+                .map((item) => {
+                  const visibleChildren = (item.children || []).filter((c) => c.visible !== false);
+                  const hasChildren = visibleChildren.length > 0;
+                  const isOpen = previewDropdownId === item.id;
+
+                  if (!hasChildren) {
+                    return (
+                      <span
+                        key={item.id}
+                        className="px-2.5 py-1.5 rounded text-[#192B2A] hover:bg-[#E9EDE4] cursor-pointer"
+                        title={`Links to: ${item.path}`}
+                      >
+                        {item.label}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="relative"
+                      onMouseEnter={() => setPreviewDropdownId(item.id)}
+                      onMouseLeave={() => setPreviewDropdownId(null)}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDropdownId(isOpen ? null : item.id)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded transition-colors ${
+                          isOpen ? 'bg-[#E9EDE4] text-[#285748] font-semibold' : 'text-[#192B2A] hover:bg-[#E9EDE4]'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isOpen && (
+                        <div className="absolute left-0 mt-1 w-48 rounded bg-white shadow-lg border border-[#D9DCD2] py-1.5 z-30">
+                          {visibleChildren.map((c) => (
+                            <div
+                              key={c.id}
+                              className="px-3 py-1.5 text-xs text-[#192B2A] hover:bg-[#F7F5EF] hover:text-[#285748] cursor-pointer flex items-center justify-between"
+                              title={`Links to: ${c.path}`}
+                            >
+                              <span>{c.label}</span>
+                              {c.is_external && <ExternalLink className="w-2.5 h-2.5 text-gray-400" />}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </nav>
+
+            <span className="px-3 py-1 bg-[#285748] text-white rounded text-xs font-semibold shrink-0">
+              Book Consultation
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Items List */}
       <div className="space-y-4">
         {draftItems.map((item, index) => {
           const hasChildren = item.children && item.children.length > 0;
+          const isDraggingOver = dragOverTopIndex === index;
 
           return (
             <div
               key={item.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', String(index));
+                setDraggedTopIndex(index);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverTopIndex(index);
+              }}
+              onDragLeave={() => setDragOverTopIndex(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDropTop(index);
+              }}
               className={`bg-white border rounded-md overflow-hidden transition-all ${
-                item.visible ? 'border-[#D9DCD2]' : 'border-dashed border-gray-300 opacity-60'
-              }`}
+                isDraggingOver ? 'border-[#285748] ring-2 ring-[#285748]/30' : ''
+              } ${item.visible ? 'border-[#D9DCD2]' : 'border-dashed border-gray-300 opacity-60'}`}
             >
               {/* Top-Level Item Row */}
               <div className="p-3 sm:p-4 bg-[#F7F5EF] border-b border-[#D9DCD2] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  {/* Order controls */}
-                  <div className="flex flex-col gap-1">
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => moveTopItem(index, 'up')}
-                      className="p-1 rounded hover:bg-[#E9EDE4] disabled:opacity-30 text-[#192B2A]"
-                      title="Move up"
+                  {/* Drag Handle & Order controls */}
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-[#285748] p-1"
+                      title="Drag to reorder top-level item"
                     >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === draftItems.length - 1}
-                      onClick={() => moveTopItem(index, 'down')}
-                      className="p-1 rounded hover:bg-[#E9EDE4] disabled:opacity-30 text-[#192B2A]"
-                      title="Move down"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => moveTopItem(index, 'up')}
+                        className="p-0.5 rounded hover:bg-[#E9EDE4] disabled:opacity-30 text-[#192B2A]"
+                        title="Move up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === draftItems.length - 1}
+                        onClick={() => moveTopItem(index, 'down')}
+                        className="p-0.5 rounded hover:bg-[#E9EDE4] disabled:opacity-30 text-[#192B2A]"
+                        title="Move down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -485,9 +649,28 @@ export default function NavigationAdminPage() {
                   {item.children?.map((child, cIndex) => (
                     <div
                       key={child.id}
-                      className="py-2.5 flex items-center justify-between text-xs"
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        setDraggedChild({ parentIndex: index, childIndex: cIndex });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDropChild(index, cIndex);
+                      }}
+                      className="py-2.5 flex items-center justify-between text-xs hover:bg-[#F7F5EF] transition-colors rounded px-2"
                     >
                       <div className="flex items-center gap-2">
+                        <div
+                          className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#285748]"
+                          title="Drag to reorder dropdown link"
+                        >
+                          <GripVertical className="w-3.5 h-3.5" />
+                        </div>
                         <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                         <div>
                           <div className="flex items-center gap-2">

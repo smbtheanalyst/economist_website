@@ -56,6 +56,7 @@ async function capture() {
     { url: 'http://localhost:3000/news', nameBase: 'news-listing' },
     { url: 'http://localhost:3000/news/media-gallery', nameBase: 'media-gallery' },
     { url: 'http://localhost:3000/consultation', nameBase: 'consultation-booking' },
+    { url: 'http://localhost:3000/ask', nameBase: 'ask-question' },
   ];
 
   for (const item of publicPages) {
@@ -78,11 +79,10 @@ async function capture() {
   console.log('Capturing Desktop Navigation Dropdown...');
   await page.setViewport({ width: 1280, height: 900 });
   await page.goto('http://localhost:3000', { waitUntil: 'networkidle0', timeout: 30000 });
-  // Hover over the first dropdown trigger if exists
   const dropdownButton = await page.$('button[aria-haspopup="true"]');
   if (dropdownButton) {
     await dropdownButton.hover();
-    await new Promise(r => setTimeout(r, 600)); // wait for transition
+    await new Promise(r => setTimeout(r, 600));
     const navBuf = await page.screenshot({ fullPage: false });
     saveToBoth('navigation-dropdown-desktop.png', navBuf);
   }
@@ -145,6 +145,49 @@ async function capture() {
       const buf = await page.screenshot({ fullPage: false });
       saveToBoth(item.name, buf);
     }
+
+    // Modal Capture 1: Project Editor with Gallery & Linkages
+    console.log('Capturing Admin Project Modal with Gallery & Research/News linkages...');
+    await page.goto('http://localhost:3000/admin/projects', { waitUntil: 'networkidle0', timeout: 30000 });
+    const clickedProj = await page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Project'));
+      if (b) { b.click(); return true; }
+      return false;
+    });
+    if (clickedProj) {
+      await new Promise(r => setTimeout(r, 600));
+      const projModalBuf = await page.screenshot({ fullPage: false });
+      saveToBoth('admin-project-modal-desktop.png', projModalBuf);
+    }
+
+    // Modal Capture 2: News Editor with Gallery & Project/Event linkages
+    console.log('Capturing Admin News Modal with Gallery & Project/Event linkages...');
+    await page.goto('http://localhost:3000/admin/insights', { waitUntil: 'networkidle0', timeout: 30000 });
+    const clickedNews = await page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Announcement'));
+      if (b) { b.click(); return true; }
+      return false;
+    });
+    if (clickedNews) {
+      await new Promise(r => setTimeout(r, 600));
+      const newsModalBuf = await page.screenshot({ fullPage: false });
+      saveToBoth('admin-news-modal-desktop.png', newsModalBuf);
+    }
+
+    // Modal Capture 3: Slide Editor with Event Photo Reuse Picker
+    console.log('Capturing Admin Slideshow Modal with Event Photo Reuse...');
+    await page.goto('http://localhost:3000/admin/slides', { waitUntil: 'networkidle0', timeout: 30000 });
+    const clickedSlide = await page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Slide'));
+      if (b) { b.click(); return true; }
+      return false;
+    });
+    if (clickedSlide) {
+      await new Promise(r => setTimeout(r, 600));
+      const slideModalBuf = await page.screenshot({ fullPage: false });
+      saveToBoth('admin-slideshow-modal-desktop.png', slideModalBuf);
+    }
+
   } finally {
     db.prepare(`DELETE FROM admin_sessions WHERE token = ?`).run(ephemeralToken);
     if (createdEphemeralUser) {

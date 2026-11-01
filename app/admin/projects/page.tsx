@@ -24,12 +24,15 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 
 export default function ProjectsAdminPage() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [availableResearch, setAvailableResearch] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [availableNews, setAvailableNews] = useState<{ id: number; title: string; slug: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -52,6 +55,8 @@ export default function ProjectsAdminPage() {
     cover_image_url: string;
     cover_image_alt: string;
     gallery_images: { url: string; caption: string; order: number }[];
+    related_research_ids: number[];
+    related_news_ids: number[];
     is_featured: boolean;
   }>({
     title: '',
@@ -63,7 +68,7 @@ export default function ProjectsAdminPage() {
     status: 'draft',
     start_date: '',
     end_date: '',
-    location: '',
+    location: 'Tanzania',
     objectives: [''],
     activities: [''],
     outputs: [''],
@@ -72,6 +77,8 @@ export default function ProjectsAdminPage() {
     cover_image_url: '',
     cover_image_alt: '',
     gallery_images: [],
+    related_research_ids: [],
+    related_news_ids: [],
     is_featured: false,
   });
 
@@ -82,6 +89,8 @@ export default function ProjectsAdminPage() {
       const data = await res.json();
       if (res.ok) {
         setProjects(data.projects || []);
+        setAvailableResearch(data.availableResearch || []);
+        setAvailableNews(data.availableNews || []);
       } else {
         setMessage({ text: data.error || 'Failed to load projects', type: 'error' });
       }
@@ -116,6 +125,8 @@ export default function ProjectsAdminPage() {
       cover_image_url: '',
       cover_image_alt: '',
       gallery_images: [],
+      related_research_ids: [],
+      related_news_ids: [],
       is_featured: false,
     });
     setIsModalOpen(true);
@@ -128,6 +139,8 @@ export default function ProjectsAdminPage() {
     let outcomes: string[] = [''];
     let partner_organizations: ProjectPartnerRole[] = [];
     let gallery_images: { url: string; caption: string; order: number }[] = [];
+    let related_research_ids: number[] = [];
+    let related_news_ids: number[] = [];
 
     try { objectives = JSON.parse(p.objectives_json); } catch {}
     try { activities = JSON.parse(p.activities_json); } catch {}
@@ -135,6 +148,8 @@ export default function ProjectsAdminPage() {
     try { outcomes = JSON.parse(p.outcomes_json); } catch {}
     try { partner_organizations = JSON.parse(p.partner_organizations_json); } catch {}
     try { gallery_images = JSON.parse(p.gallery_images_json); } catch {}
+    try { related_research_ids = JSON.parse(p.related_research_ids_json); } catch {}
+    try { related_news_ids = JSON.parse(p.related_news_ids_json); } catch {}
 
     setFormData({
       id: p.id,
@@ -156,6 +171,8 @@ export default function ProjectsAdminPage() {
       cover_image_url: p.cover_image_url || '',
       cover_image_alt: p.cover_image_alt || '',
       gallery_images,
+      related_research_ids,
+      related_news_ids,
       is_featured: p.is_featured === 1,
     });
     setIsModalOpen(true);
@@ -907,6 +924,185 @@ export default function ProjectsAdminPage() {
                     placeholder="Accessibility description"
                     className="w-full p-2 border border-[#D9DCD2] rounded text-xs text-[#192B2A]"
                   />
+                </div>
+              </div>
+
+              {/* Project Photo Gallery */}
+              <div className="bg-[#F7F5EF] p-4 rounded border border-[#D9DCD2] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-serif font-bold text-sm text-[#192B2A] block">
+                      Project Photo Gallery
+                    </span>
+                    <span className="text-[11px] text-[#52605A]">
+                      Add field photos, workshop captures, or policy presentation images.
+                    </span>
+                  </div>
+                  <label className="cursor-pointer px-3 py-1.5 bg-[#285748] text-white rounded text-xs font-semibold hover:bg-[#1e4337] transition-colors inline-flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isUploadingGallery ? 'Uploading...' : 'Add Gallery Photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isUploadingGallery}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setIsUploadingGallery(true);
+                        try {
+                          const body = new FormData();
+                          body.append('file', file);
+                          const res = await fetch('/api/admin/upload', { method: 'POST', body });
+                          const json = await res.json();
+                          if (res.ok && json.url) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              gallery_images: [
+                                ...prev.gallery_images,
+                                { url: json.url, caption: '', order: prev.gallery_images.length },
+                              ],
+                            }));
+                          } else {
+                            alert(json.error || 'Upload failed');
+                          }
+                        } catch {
+                          alert('Upload failed');
+                        } finally {
+                          setIsUploadingGallery(false);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {formData.gallery_images.length === 0 ? (
+                  <p className="text-xs text-[#52605A] italic py-1">No gallery photos added yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {formData.gallery_images.map((img, i) => (
+                      <div key={i} className="flex gap-2 p-2 bg-white rounded border border-[#D9DCD2] items-center">
+                        <div className="relative w-14 h-14 rounded overflow-hidden shrink-0 border border-[#D9DCD2] bg-gray-50">
+                          <Image src={img.url} alt={img.caption || 'Project gallery image'} fill className="object-cover" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="text"
+                            value={img.caption}
+                            onChange={(e) => {
+                              const newImages = [...formData.gallery_images];
+                              newImages[i].caption = e.target.value;
+                              setFormData((prev) => ({ ...prev, gallery_images: newImages }));
+                            }}
+                            placeholder="Photo caption / context..."
+                            className="w-full p-1 text-xs border border-[#D9DCD2] rounded text-[#192B2A]"
+                          />
+                          <p className="text-[10px] text-gray-400 font-mono truncate">{img.url}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              gallery_images: prev.gallery_images.filter((_, idx) => idx !== i),
+                            }));
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Remove photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Related Research Publications & Related Institutional News */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#D9DCD2]">
+                {/* Related Research */}
+                <div className="bg-[#E9EDE4] p-3 rounded border border-[#D9DCD2] space-y-2">
+                  <span className="font-serif font-bold text-xs text-[#285748] block">
+                    Link Related Research Publications
+                  </span>
+                  <span className="text-[11px] text-[#52605A] block">
+                    Select published papers or policy briefs produced from this project:
+                  </span>
+                  {availableResearch.length === 0 ? (
+                    <p className="text-[11px] text-gray-500 italic">No published research available to link.</p>
+                  ) : (
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 bg-white p-2 rounded border border-[#D9DCD2]">
+                      {availableResearch.map((res) => {
+                        const isChecked = formData.related_research_ids.includes(res.id);
+                        return (
+                          <label key={res.id} className="flex items-center gap-2 text-xs text-[#192B2A] cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    related_research_ids: [...prev.related_research_ids, res.id],
+                                  }));
+                                } else {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    related_research_ids: prev.related_research_ids.filter((id) => id !== res.id),
+                                  }));
+                                }
+                              }}
+                              className="rounded text-[#285748] focus:ring-[#285748]"
+                            />
+                            <span className="truncate">{res.title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Related News */}
+                <div className="bg-[#E9EDE4] p-3 rounded border border-[#D9DCD2] space-y-2">
+                  <span className="font-serif font-bold text-xs text-[#285748] block">
+                    Link Related Institutional News
+                  </span>
+                  <span className="text-[11px] text-[#52605A] block">
+                    Select press releases or announcements covering this project:
+                  </span>
+                  {availableNews.length === 0 ? (
+                    <p className="text-[11px] text-gray-500 italic">No news articles available to link.</p>
+                  ) : (
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 bg-white p-2 rounded border border-[#D9DCD2]">
+                      {availableNews.map((news) => {
+                        const isChecked = formData.related_news_ids.includes(news.id);
+                        return (
+                          <label key={news.id} className="flex items-center gap-2 text-xs text-[#192B2A] cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    related_news_ids: [...prev.related_news_ids, news.id],
+                                  }));
+                                } else {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    related_news_ids: prev.related_news_ids.filter((id) => id !== news.id),
+                                  }));
+                                }
+                              }}
+                              className="rounded text-[#285748] focus:ring-[#285748]"
+                            />
+                            <span className="truncate">{news.title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
