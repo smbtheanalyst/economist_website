@@ -507,19 +507,6 @@ function initSchema(db: DatabaseSync) {
           { id: 'nav-news-events', label: 'Events', path: '/events', is_external: false, visible: true, order: 1 },
           { id: 'nav-news-gallery', label: 'Media Gallery', path: '/news/media-gallery', is_external: false, visible: true, order: 2 }
         ]
-      },
-      {
-        id: 'nav-contact',
-        label: 'Contact & Advisory',
-        path: '/consultation',
-        is_external: false,
-        visible: true,
-        order: 6,
-        children: [
-          { id: 'nav-contact-book', label: 'Book Advisory Session', path: '/consultation', is_external: false, visible: true, order: 0 },
-          { id: 'nav-contact-ask', label: 'Ask a Policy Question', path: '/ask', is_external: false, visible: true, order: 1 },
-          { id: 'nav-contact-partner', label: 'Partner With Us', path: '/partners/partner-with-us', is_external: false, visible: true, order: 2 }
-        ]
       }
     ];
     const defaultNavJson = JSON.stringify(defaultNav);

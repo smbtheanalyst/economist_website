@@ -84,18 +84,6 @@ export default function Header({ navItems = [] }: HeaderProps) {
         { id: 'nav-news-gallery', label: 'Media Gallery', path: '/news/media-gallery', visible: true, order: 2 },
       ],
     },
-    {
-      id: 'nav-contact',
-      label: 'Contact & Advisory',
-      path: '/consultation',
-      visible: true,
-      order: 6,
-      children: [
-        { id: 'nav-contact-book', label: 'Book Advisory Session', path: '/consultation', visible: true, order: 0 },
-        { id: 'nav-contact-ask', label: 'Ask a Policy Question', path: '/ask', visible: true, order: 1 },
-        { id: 'nav-contact-partner', label: 'Partner With Us', path: '/partners/partner-with-us', visible: true, order: 2 },
-      ],
-    },
   ];
 
   const rawItems = navItems && navItems.length > 0 ? navItems : defaultItems;
