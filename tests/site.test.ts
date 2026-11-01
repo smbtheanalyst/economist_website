@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getDb } from '../lib/db';
-import { getSiteSettings, getPublishedInsights, getInsightBySlug, getPublishedResearch, getResearchBySlug, getEvents } from '../lib/data';
+import {
+  getSiteSettings,
+  getPublishedInsights,
+  getInsightBySlug,
+  getPublishedResearch,
+  getResearchBySlug,
+  getEvents,
+  getEventBySlug,
+  getAllEventsAdmin,
+  parseGalleryImages,
+} from '../lib/data';
 import { createBooking, isSlotConflicting, cleanExpiredBookings } from '../lib/booking';
 import { hashPassword, verifyPassword, generateToken } from '../lib/auth';
 import { sendEmail } from '../lib/email';
@@ -849,5 +859,236 @@ test('29. Production Content Initialization: Startup sequence on fresh database,
     fs.rmSync(testImportDbPath, { force: true });
   } catch {
     // Windows file handle release latency
+  }
+});
+
+test('30. Event Publishing Workflow & Visibility Boundaries: Draft vs Published and Upcoming/Past', async () => {
+  const draftSlug = 'test-policy-symposium-draft-' + Date.now();
+  db.prepare(`DELETE FROM events WHERE slug = ?`).run(draftSlug);
+
+  // 1. Insert a new event defaulting to draft (with future start/end time)
+  const futureStart = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const futureEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000).toISOString();
+
+  db.prepare(`
+    INSERT INTO events (
+      title, slug, description, start_time, end_time, venue_or_format,
+      is_online, is_organized_by_me, organizer_type, organizer_name,
+      registration_url, status, is_demo
+    ) VALUES (
+      'Future Draft Economic Symposium', ?, 'Draft description for test forum',
+      ?, ?, 'Rita Tower, Dar es Salaam',
+      0, 1, 'tefpc', 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
+      'https://tefpc.or.tz/register', 'draft', 0
+    )
+  `).run(draftSlug, futureStart, futureEnd);
+
+  // 2. Public query (includeDrafts = false) MUST NOT include the draft event
+  const publicEvents = getEvents(false);
+  assert.ok(!publicEvents.upcoming.some((e) => e.slug === draftSlug), 'Public upcoming listing MUST NOT expose draft events');
+  assert.ok(!publicEvents.past.some((e) => e.slug === draftSlug), 'Public past listing MUST NOT expose draft events');
+
+  // Public slug lookup MUST return null for draft
+  const publicDetail = getEventBySlug(draftSlug, false);
+  assert.equal(publicDetail, null, 'Public route lookup for draft event MUST return null (yielding 404)');
+
+  // Admin query (includeDrafts = true) MUST include the draft event
+  const adminEvents = getEvents(true);
+  assert.ok(adminEvents.upcoming.some((e) => e.slug === draftSlug), 'Admin query MUST include draft upcoming events');
+
+  const adminPreviewDetail = getEventBySlug(draftSlug, true);
+  assert.ok(adminPreviewDetail, 'Admin preview lookup MUST retrieve the draft event');
+  assert.equal(adminPreviewDetail?.status, 'draft');
+
+  // 3. Publish the event
+  db.prepare(`UPDATE events SET status = 'published' WHERE slug = ?`).run(draftSlug);
+
+  // Public query MUST now include the published upcoming event
+  const publicEventsPublished = getEvents(false);
+  assert.ok(publicEventsPublished.upcoming.some((e) => e.slug === draftSlug), 'Published event MUST appear in public upcoming listing');
+
+  const publicDetailPublished = getEventBySlug(draftSlug, false);
+  assert.ok(publicDetailPublished, 'Public route lookup MUST find published event');
+  assert.equal(publicDetailPublished?.status, 'published');
+
+  // 4. Test Upcoming vs Past classification independently of status
+  const pastSlug = 'test-past-concluded-event-' + Date.now();
+  const pastStart = '2026-01-10T09:00:00Z';
+  const pastEnd = '2026-01-10T14:00:00Z';
+
+  // Past published event
+  db.prepare(`
+    INSERT INTO events (
+      title, slug, description, start_time, end_time, venue_or_format,
+      is_online, is_organized_by_me, organizer_type, organizer_name,
+      registration_url, status, is_demo
+    ) VALUES (
+      'Past Published Forum 2026', ?, 'Concluded forum description',
+      ?, ?, 'BOT Auditorium, Dar es Salaam',
+      0, 0, 'external', 'Bank of Tanzania (BOT)',
+      '', 'published', 0
+    )
+  `).run(pastSlug, pastStart, pastEnd);
+
+  const publicWithPast = getEvents(false);
+  assert.ok(publicWithPast.past.some((e) => e.slug === pastSlug), 'Past published event MUST appear in past archive section');
+  assert.ok(!publicWithPast.upcoming.some((e) => e.slug === pastSlug), 'Past event MUST NOT appear in upcoming section');
+
+  // Cleanup
+  db.prepare(`DELETE FROM events WHERE slug IN (?, ?)`).run(draftSlug, pastSlug);
+});
+
+test('31. Event Images & Gallery: Persistence, Alt Text, Ordering, Replacement and Removal', async () => {
+  const mediaSlug = 'test-media-event-' + Date.now();
+  db.prepare(`DELETE FROM events WHERE slug = ?`).run(mediaSlug);
+
+  const coverUrl = '/uploads/event_cover_test_123.webp';
+  const coverAlt = 'Keynote speech at Rita Tower auditorium';
+  const initialGallery = [
+    { id: 'img-1', url: '/uploads/gallery_photo_1.jpg', caption: 'Panel discussion on inflation', order: 0 },
+    { id: 'img-2', url: '/uploads/gallery_photo_2.jpg', caption: 'Audience Q&A session', order: 1 },
+    { id: 'img-3', url: '/uploads/gallery_photo_3.jpg', caption: 'Closing networking reception', order: 2 },
+  ];
+
+  db.prepare(`
+    INSERT INTO events (
+      title, slug, description, start_time, end_time, venue_or_format,
+      is_online, is_organized_by_me, organizer_type, organizer_name,
+      registration_url, status, cover_image_url, cover_image_alt,
+      gallery_images_json, is_demo
+    ) VALUES (
+      'Macroeconomic Policy & Inflation Forum', ?, 'Forum with full gallery test',
+      '2026-11-20T09:00:00Z', '2026-11-20T17:00:00Z', 'Rita Tower, Dar es Salaam',
+      0, 1, 'tefpc', 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
+      '', 'published', ?, ?, ?, 0
+    )
+  `).run(mediaSlug, coverUrl, coverAlt, JSON.stringify(initialGallery));
+
+  // 1. Retrieve and verify cover image and gallery images persist accurately
+  const saved = getEventBySlug(mediaSlug, false);
+  assert.ok(saved);
+  assert.equal(saved.cover_image_url, coverUrl);
+  assert.equal(saved.cover_image_alt, coverAlt);
+
+  const parsedGallery = parseGalleryImages(saved.gallery_images_json);
+  assert.equal(parsedGallery.length, 3);
+  assert.equal(parsedGallery[0].caption, 'Panel discussion on inflation');
+  assert.equal(parsedGallery[2].caption, 'Closing networking reception');
+
+  // 2. Reorder gallery: swap items (move item 2 to index 0)
+  const reorderedGallery = [
+    { id: 'img-3', url: '/uploads/gallery_photo_3.jpg', caption: 'Closing networking reception', order: 0 },
+    { id: 'img-1', url: '/uploads/gallery_photo_1.jpg', caption: 'Panel discussion on inflation', order: 1 },
+    { id: 'img-2', url: '/uploads/gallery_photo_2.jpg', caption: 'Audience Q&A session', order: 2 },
+  ];
+  db.prepare(`UPDATE events SET gallery_images_json = ? WHERE slug = ?`).run(JSON.stringify(reorderedGallery), mediaSlug);
+
+  const updatedSaved = getEventBySlug(mediaSlug, false);
+  const reorderedParsed = parseGalleryImages(updatedSaved?.gallery_images_json);
+  assert.equal(reorderedParsed[0].id, 'img-3');
+  assert.equal(reorderedParsed[1].id, 'img-1');
+  assert.equal(reorderedParsed[2].id, 'img-2');
+
+  // 3. Replace cover and remove one gallery item
+  const newCoverUrl = '/uploads/event_cover_replaced_456.png';
+  const newCoverAlt = 'Updated keynote presentation stage';
+  const trimmedGallery = [
+    { id: 'img-3', url: '/uploads/gallery_photo_3.jpg', caption: 'Closing networking reception', order: 0 },
+    { id: 'img-1', url: '/uploads/gallery_photo_1.jpg', caption: 'Panel discussion on inflation', order: 1 },
+  ];
+
+  db.prepare(`
+    UPDATE events
+    SET cover_image_url = ?, cover_image_alt = ?, gallery_images_json = ?
+    WHERE slug = ?
+  `).run(newCoverUrl, newCoverAlt, JSON.stringify(trimmedGallery), mediaSlug);
+
+  const finalCheck = getEventBySlug(mediaSlug, false);
+  assert.equal(finalCheck?.cover_image_url, newCoverUrl);
+  assert.equal(finalCheck?.cover_image_alt, newCoverAlt);
+  assert.equal(parseGalleryImages(finalCheck?.gallery_images_json).length, 2);
+
+  // Cleanup
+  db.prepare(`DELETE FROM events WHERE slug = ?`).run(mediaSlug);
+});
+
+test('32. Organizer Clarity: Explicit Choice (TEFPC vs External Organizer) & External Name Attribution', async () => {
+  const tefpcSlug = 'test-tefpc-event-' + Date.now();
+  const externalSlug = 'test-external-event-' + Date.now();
+  db.prepare(`DELETE FROM events WHERE slug IN (?, ?)`).run(tefpcSlug, externalSlug);
+
+  // Case 1: Organized by TEFPC
+  db.prepare(`
+    INSERT INTO events (
+      title, slug, description, start_time, end_time, venue_or_format,
+      is_online, is_organized_by_me, organizer_type, organizer_name,
+      registration_url, status, is_demo
+    ) VALUES (
+      'TEFPC Sovereign Debt Policy Clinic', ?, 'TEFPC organized clinic',
+      '2026-12-05T09:00:00Z', '2026-12-05T12:00:00Z', 'Rita Tower, Dar es Salaam',
+      0, 1, 'tefpc', 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
+      '', 'published', 0
+    )
+  `).run(tefpcSlug);
+
+  // Case 2: External organizer with explicit name
+  db.prepare(`
+    INSERT INTO events (
+      title, slug, description, start_time, end_time, venue_or_format,
+      is_online, is_organized_by_me, organizer_type, organizer_name,
+      registration_url, status, is_demo
+    ) VALUES (
+      'East Africa Trade Policy Conference', ?, 'Regional trade conference',
+      '2026-12-15T09:00:00Z', '2026-12-16T17:00:00Z', 'Arusha International Conference Centre (AICC)',
+      0, 0, 'external', 'East African Community (EAC) Secretariat',
+      'https://www.eac.int', 'published', 0
+    )
+  `).run(externalSlug);
+
+  const tefpcEvent = getEventBySlug(tefpcSlug, false);
+  assert.ok(tefpcEvent);
+  assert.equal(tefpcEvent.organizer_type, 'tefpc');
+  assert.equal(tefpcEvent.is_organized_by_me, 1);
+  assert.equal(tefpcEvent.organizer_name, 'Tanzania Economic and Financial Policy Consultancy (TEFPC)');
+
+  const extEvent = getEventBySlug(externalSlug, false);
+  assert.ok(extEvent);
+  assert.equal(extEvent.organizer_type, 'external');
+  assert.equal(extEvent.is_organized_by_me, 0);
+  assert.equal(extEvent.organizer_name, 'East African Community (EAC) Secretariat');
+
+  // Cleanup
+  db.prepare(`DELETE FROM events WHERE slug IN (?, ?)`).run(tefpcSlug, externalSlug);
+});
+
+test('33. Existing Events Preservation: Pre-existing records maintain published visibility & editing integrity', async () => {
+  // Verify pre-existing records (IDs 4 & 5) exist and remain published
+  const existingTefpc = db.prepare(`SELECT * FROM events WHERE id = 4`).get() as any;
+  if (existingTefpc) {
+    assert.equal(existingTefpc.status, 'published', 'Pre-existing event 4 MUST remain published');
+    assert.equal(existingTefpc.organizer_type, 'tefpc', 'Pre-existing event 4 MUST be classified as tefpc');
+    assert.ok(existingTefpc.title.includes('TEFPC Policy Roundtable'));
+  }
+
+  const existingBot = db.prepare(`SELECT * FROM events WHERE id = 5`).get() as any;
+  if (existingBot) {
+    assert.equal(existingBot.status, 'published', 'Pre-existing event 5 MUST remain published');
+    assert.equal(existingBot.organizer_type, 'external', 'Pre-existing event 5 MUST be classified as external');
+    assert.ok(existingBot.organizer_name.includes('Bank of Tanzania'));
+  }
+
+  // Verify safe edit of an existing record preserves all fields and does not corrupt schema
+  if (existingTefpc) {
+    const originalDesc = existingTefpc.description;
+    const testUpdatedDesc = originalDesc + ' [Verified Update 2026]';
+    db.prepare(`UPDATE events SET description = ? WHERE id = 4`).run(testUpdatedDesc);
+
+    const reChecked = db.prepare(`SELECT description, status, organizer_type FROM events WHERE id = 4`).get() as any;
+    assert.equal(reChecked.description, testUpdatedDesc);
+    assert.equal(reChecked.status, 'published');
+    assert.equal(reChecked.organizer_type, 'tefpc');
+
+    // Restore original description
+    db.prepare(`UPDATE events SET description = ? WHERE id = 4`).run(originalDesc);
   }
 });

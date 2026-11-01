@@ -1,0 +1,11 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="675" fill="#142120"/>
+  <rect x="40" y="40" width="1120" height="595" stroke="#DCE3D7" stroke-width="2"/>
+  <rect x="80" y="90" width="220" height="32" rx="4" fill="#DCE3D7"/>
+  <text x="94" y="111" fill="#192B2A" font-family="system-ui, sans-serif" font-size="12" font-weight="700">EXTERNAL ORGANIZER</text>
+  <text x="80" y="190" fill="#F7F5EF" font-family="Georgia, serif" font-size="40" font-weight="600">Bank of Tanzania (BOT)</text>
+  <text x="80" y="240" fill="#D9DCD2" font-family="Georgia, serif" font-size="30" font-style="italic">Annual Research Conference 2026</text>
+  <rect x="80" y="300" width="1040" height="180" rx="6" fill="#192B2A" stroke="#285748" stroke-width="1.5"/>
+  <text x="120" y="360" fill="#DCE3D7" font-family="system-ui, sans-serif" font-size="16">BOT Conference Auditorium, 10 Mirambo Street, Dar es Salaam</text>
+  <text x="120" y="400" fill="#718079" font-family="system-ui, sans-serif" font-size="14">National economics symposium on digital financial services & macroeconomic resilience.</text>
+</svg>

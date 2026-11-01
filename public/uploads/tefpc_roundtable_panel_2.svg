@@ -1,0 +1,11 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="675" fill="#152423"/>
+  <rect x="40" y="40" width="1120" height="595" stroke="#285748" stroke-width="2"/>
+  <rect x="80" y="90" width="180" height="32" rx="4" fill="#285748"/>
+  <text x="94" y="111" fill="#F7F5EF" font-family="system-ui, sans-serif" font-size="12" font-weight="700">SESSION 2 ARCHIVE</text>
+  <text x="80" y="190" fill="#F7F5EF" font-family="Georgia, serif" font-size="38" font-weight="600">Fiscal Policy & EAC Trade Corridors</text>
+  <text x="80" y="240" fill="#D9DCD2" font-family="system-ui, sans-serif" font-size="18">Regional Trade Integration & Non-Tariff Barriers Consultation</text>
+  <rect x="80" y="300" width="1040" height="240" rx="6" fill="#192B2A" stroke="#285748" stroke-width="1.5"/>
+  <text x="120" y="380" fill="#DCE3D7" font-family="system-ui, sans-serif" font-size="16">Roundtable discussions with East African Community economic researchers.</text>
+  <text x="120" y="420" fill="#718079" font-family="system-ui, sans-serif" font-size="14">Analyzing cargo throughput, currency settlement and infrastructure investments.</text>
+</svg>

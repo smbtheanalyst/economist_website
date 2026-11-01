@@ -39,5 +39,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...insightRoutes, ...researchRoutes];
+  // Published Events
+  const events = db.prepare(`SELECT slug, updated_at FROM events WHERE status = 'published'`).all() as { slug: string; updated_at: string }[];
+  const eventRoutes = events.map((e) => ({
+    url: `${siteUrl}/events/${e.slug}`,
+    lastModified: new Date(e.updated_at),
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }));
+
+  return [...staticRoutes, ...insightRoutes, ...researchRoutes, ...eventRoutes];
 }

@@ -175,6 +175,13 @@ export function getResearchBySlug(slug: string, allowDraft = false): ResearchIte
   return row || null;
 }
 
+export interface EventGalleryImage {
+  id: string;
+  url: string;
+  caption: string;
+  order: number;
+}
+
 export interface EventItem {
   id: number;
   title: string;
@@ -185,28 +192,60 @@ export interface EventItem {
   venue_or_format: string;
   is_online: number;
   is_organized_by_me: number;
+  organizer_type?: 'tefpc' | 'external';
   organizer_name: string;
   registration_url: string;
+  status: 'draft' | 'published';
+  cover_image_url?: string;
+  cover_image_alt?: string;
+  gallery_images_json?: string;
   is_demo: number;
   created_at: string;
   updated_at: string;
 }
 
-export function getEvents(): { upcoming: EventItem[]; past: EventItem[] } {
+export function parseGalleryImages(jsonStr?: string | null): EventGalleryImage[] {
+  if (!jsonStr) return [];
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed)) {
+      return parsed.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+  } catch {}
+  return [];
+}
+
+export function getEvents(includeDrafts = false): { upcoming: EventItem[]; past: EventItem[] } {
   const db = getDb();
   const nowIso = new Date().toISOString();
 
+  const statusClause = includeDrafts ? '' : "AND status = 'published'";
+
   const upcoming = db.prepare(`
     SELECT * FROM events
-    WHERE datetime(end_time) >= datetime(?)
+    WHERE datetime(end_time) >= datetime(?) ${statusClause}
     ORDER BY datetime(start_time) ASC
   `).all(nowIso) as unknown as EventItem[];
 
   const past = db.prepare(`
     SELECT * FROM events
-    WHERE datetime(end_time) < datetime(?)
+    WHERE datetime(end_time) < datetime(?) ${statusClause}
     ORDER BY datetime(start_time) DESC
   `).all(nowIso) as unknown as EventItem[];
 
   return { upcoming, past };
+}
+
+export function getEventBySlug(slug: string, includeDraft = false): EventItem | null {
+  const db = getDb();
+  const sql = includeDraft
+    ? `SELECT * FROM events WHERE slug = ? LIMIT 1`
+    : `SELECT * FROM events WHERE slug = ? AND status = 'published' LIMIT 1`;
+  const row = db.prepare(sql).get(slug) as EventItem | undefined;
+  return row || null;
+}
+
+export function getAllEventsAdmin(): EventItem[] {
+  const db = getDb();
+  return db.prepare(`SELECT * FROM events ORDER BY datetime(start_time) DESC`).all() as unknown as EventItem[];
 }

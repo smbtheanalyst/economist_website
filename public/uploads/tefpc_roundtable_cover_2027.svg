@@ -1,0 +1,35 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="675" fill="#192B2A"/>
+  <rect x="40" y="40" width="1120" height="595" stroke="#285748" stroke-width="2" stroke-dasharray="8 8"/>
+  <circle cx="1050" cy="150" r="180" fill="#285748" fill-opacity="0.2"/>
+  <circle cx="150" cy="520" r="220" fill="#285748" fill-opacity="0.15"/>
+  
+  <!-- Architectural grid / Skyline lines -->
+  <path d="M40 500 L1160 500" stroke="#D9DCD2" stroke-opacity="0.3" stroke-width="2"/>
+  <path d="M40 450 L1160 450" stroke="#D9DCD2" stroke-opacity="0.2" stroke-width="1"/>
+  <path d="M40 400 L1160 400" stroke="#D9DCD2" stroke-opacity="0.1" stroke-width="1"/>
+
+  <!-- Stylized Rita Tower Outline -->
+  <path d="M850 500 L850 220 L920 180 L990 220 L990 500 Z" fill="#285748" fill-opacity="0.35"/>
+  <rect x="870" y="240" width="100" height="260" stroke="#D9DCD2" stroke-opacity="0.4" stroke-width="2" fill="none"/>
+  <line x1="920" y1="180" x2="920" y2="130" stroke="#D9DCD2" stroke-width="3"/>
+
+  <!-- Badge -->
+  <rect x="80" y="100" width="220" height="36" rx="4" fill="#285748"/>
+  <text x="96" y="123" fill="#F7F5EF" font-family="system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="1">ORGANIZED BY TEFPC</text>
+
+  <!-- Typography -->
+  <text x="80" y="210" fill="#F7F5EF" font-family="Georgia, serif" font-size="44" font-weight="600">TEFPC Policy Roundtable</text>
+  <text x="80" y="265" fill="#D9DCD2" font-family="Georgia, serif" font-size="32" font-style="italic">Macroeconomic Outlook for Tanzania 2027</text>
+
+  <text x="80" y="340" fill="#DCE3D7" font-family="system-ui, sans-serif" font-size="16" font-weight="400">
+    <tspan x="80" dy="0">High-level dialogue on fiscal policy, foreign exchange stability,</tspan>
+    <tspan x="80" dy="26">and regional trade dynamics across the East African Community.</tspan>
+  </text>
+
+  <!-- Location Bar -->
+  <rect x="80" y="420" width="560" height="50" rx="4" fill="#285748" fill-opacity="0.5" stroke="#D9DCD2" stroke-opacity="0.3"/>
+  <text x="100" y="451" fill="#F7F5EF" font-family="system-ui, sans-serif" font-size="14" font-weight="500">
+    Rita Tower, 15th Floor, Posta, Dar es Salaam • 26 November 2026
+  </text>
+</svg>

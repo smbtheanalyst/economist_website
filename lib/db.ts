@@ -123,8 +123,13 @@ function initSchema(db: DatabaseSync) {
       venue_or_format TEXT NOT NULL,
       is_online INTEGER NOT NULL DEFAULT 0,
       is_organized_by_me INTEGER NOT NULL DEFAULT 0,
+      organizer_type TEXT NOT NULL DEFAULT 'tefpc',
       organizer_name TEXT NOT NULL,
       registration_url TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
       is_demo INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -250,4 +255,27 @@ function initSchema(db: DatabaseSync) {
       expires_at INTEGER NOT NULL
     );
   `);
+
+  // Safe incremental migration for events table
+  const eventCols = db.prepare(`PRAGMA table_info(events)`).all() as Array<{ name: string }>;
+  const colSet = new Set(eventCols.map((c) => c.name));
+
+  if (!colSet.has('status')) {
+    db.exec(`ALTER TABLE events ADD COLUMN status TEXT NOT NULL DEFAULT 'draft'`);
+    // Preserve existing events' public visibility
+    db.exec(`UPDATE events SET status = 'published'`);
+  }
+  if (!colSet.has('cover_image_url')) {
+    db.exec(`ALTER TABLE events ADD COLUMN cover_image_url TEXT DEFAULT ''`);
+  }
+  if (!colSet.has('cover_image_alt')) {
+    db.exec(`ALTER TABLE events ADD COLUMN cover_image_alt TEXT DEFAULT ''`);
+  }
+  if (!colSet.has('gallery_images_json')) {
+    db.exec(`ALTER TABLE events ADD COLUMN gallery_images_json TEXT NOT NULL DEFAULT '[]'`);
+  }
+  if (!colSet.has('organizer_type')) {
+    db.exec(`ALTER TABLE events ADD COLUMN organizer_type TEXT NOT NULL DEFAULT 'tefpc'`);
+    db.exec(`UPDATE events SET organizer_type = CASE WHEN is_organized_by_me = 1 THEN 'tefpc' ELSE 'external' END`);
+  }
 }

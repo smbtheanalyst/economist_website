@@ -103,8 +103,13 @@ function ensureSchema() {
       venue_or_format TEXT NOT NULL,
       is_online INTEGER NOT NULL DEFAULT 0,
       is_organized_by_me INTEGER NOT NULL DEFAULT 0,
+      organizer_type TEXT NOT NULL DEFAULT 'tefpc',
       organizer_name TEXT NOT NULL,
       registration_url TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
       is_demo INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -408,11 +413,13 @@ async function main() {
   const insertEvent = db.prepare(`
     INSERT INTO events (
       title, slug, description, start_time, end_time, venue_or_format,
-      is_online, is_organized_by_me, organizer_name, registration_url,
+      is_online, is_organized_by_me, organizer_type, organizer_name, registration_url,
+      status, cover_image_url, cover_image_alt, gallery_images_json,
       is_demo, created_at, updated_at
     ) VALUES (
       @title, @slug, @description, @start_time, @end_time, @venue_or_format,
-      @is_online, @is_organized_by_me, @organizer_name, @registration_url,
+      @is_online, @is_organized_by_me, @organizer_type, @organizer_name, @registration_url,
+      @status, @cover_image_url, @cover_image_alt, @gallery_images_json,
       0, datetime('now'), datetime('now')
     )
     ON CONFLICT(slug) DO NOTHING
@@ -428,8 +435,13 @@ async function main() {
       venue_or_format: ev.venue_or_format,
       is_online: ev.is_online || 0,
       is_organized_by_me: ev.is_organized_by_me || 0,
+      organizer_type: ev.organizer_type || (ev.is_organized_by_me ? 'tefpc' : 'external'),
       organizer_name: ev.organizer_name || 'TEFPC',
-      registration_url: ev.registration_url || ''
+      registration_url: ev.registration_url || '',
+      status: ev.status || 'draft',
+      cover_image_url: ev.cover_image_url || '',
+      cover_image_alt: ev.cover_image_alt || '',
+      gallery_images_json: ev.gallery_images_json || '[]',
     });
 
     if (res.changes > 0) {
