@@ -225,6 +225,129 @@ function ensureSchema() {
       count INTEGER NOT NULL DEFAULT 1,
       expires_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS pages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      content_html TEXT NOT NULL DEFAULT '',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      seo_title TEXT DEFAULT '',
+      seo_description TEXT DEFAULT '',
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      published_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS navigation_menus (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      published_items_json TEXT NOT NULL DEFAULT '[]',
+      draft_items_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS homepage_slides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      caption TEXT DEFAULT '',
+      image_url TEXT NOT NULL,
+      image_alt TEXT NOT NULL,
+      activity_date TEXT DEFAULT '',
+      activity_location TEXT DEFAULT '',
+      link_url TEXT DEFAULT '',
+      link_text TEXT DEFAULT '',
+      focal_point TEXT NOT NULL DEFAULT 'center',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL,
+      description_html TEXT NOT NULL DEFAULT '',
+      research_theme TEXT NOT NULL DEFAULT '',
+      project_status TEXT NOT NULL CHECK(project_status IN ('ongoing', 'completed')) DEFAULT 'ongoing',
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      location TEXT DEFAULT '',
+      objectives_json TEXT NOT NULL DEFAULT '[]',
+      activities_json TEXT NOT NULL DEFAULT '[]',
+      outputs_json TEXT NOT NULL DEFAULT '[]',
+      outcomes_json TEXT NOT NULL DEFAULT '[]',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
+      related_research_ids_json TEXT NOT NULL DEFAULT '[]',
+      related_news_ids_json TEXT NOT NULL DEFAULT '[]',
+      partner_organizations_json TEXT NOT NULL DEFAULT '[]',
+      is_featured INTEGER NOT NULL DEFAULT 0,
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS partners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      logo_url TEXT DEFAULT '',
+      logo_alt TEXT DEFAULT '',
+      website_url TEXT DEFAULT '',
+      relationship_description TEXT NOT NULL DEFAULT '',
+      relationship_type TEXT NOT NULL DEFAULT 'Institutional Partner',
+      related_project_ids_json TEXT NOT NULL DEFAULT '[]',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_featured_homepage INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS news_articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      content_html TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'Institutional News',
+      published_date TEXT NOT NULL DEFAULT (date('now')),
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
+      related_project_ids_json TEXT NOT NULL DEFAULT '[]',
+      related_event_ids_json TEXT NOT NULL DEFAULT '[]',
+      is_featured INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS media_gallery (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      caption TEXT DEFAULT '',
+      image_url TEXT NOT NULL,
+      image_alt TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Events & Dialogues',
+      source_type TEXT NOT NULL DEFAULT 'manual',
+      source_id INTEGER,
+      event_date TEXT DEFAULT '',
+      location TEXT DEFAULT '',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'published',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 

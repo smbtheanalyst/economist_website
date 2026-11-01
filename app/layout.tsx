@@ -2,35 +2,33 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { getSiteSettings } from '@/lib/data';
+import { getSiteSettings, getNavigationMenu } from '@/lib/data';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = getSiteSettings();
-  const title = `${settings.researcher_name} | ${settings.professional_title}`;
-  const description = settings.hero_intro;
+  const title = 'Tanzania Economic and Financial Policy Consultancy (TEFPC) | Economic Research & Advisory';
+  const description = settings.hero_intro || 'Independent economic research, financial policy evaluation, macroeconomic modelling, and policy consulting in Tanzania.';
 
   return {
     title: {
       default: title,
-      template: `%s | ${settings.researcher_name}`,
+      template: '%s | TEFPC',
     },
     description,
     keywords: [
-      'Economics',
-      'Tanzania',
-      'Dr. Hamis Miraji Ally Simba',
       'TEFPC',
       'Tanzania Economic and Financial Policy Consultancy',
-      'Economic Policy and Analysis',
-      'Economic Modelling',
-      'Applied Macroeconomics',
+      'Economic Policy Tanzania',
+      'Macroeconomic Research',
+      'Financial Policy Evaluation',
       'Applied Econometrics',
-      'Economic Development',
-      'Time Series Econometrics',
-      'Dar es Salaam',
+      'Policy Advisory Dar es Salaam',
+      'Dr. Hamis Miraji Ally Simba',
+      'Economic Development Tanzania',
+      'Dar es Salaam'
     ],
-    authors: [{ name: settings.researcher_name }],
-    creator: settings.researcher_name,
+    authors: [{ name: 'Tanzania Economic and Financial Policy Consultancy (TEFPC)' }],
+    creator: 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
     metadataBase: new URL(process.env.SITE_URL || 'http://localhost:3000'),
     openGraph: {
       type: 'website',
@@ -38,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
       url: process.env.SITE_URL || 'http://localhost:3000',
       title,
       description,
-      siteName: `TEFPC — ${settings.researcher_name}`,
+      siteName: 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
     },
     twitter: {
       card: 'summary_large_image',
@@ -54,6 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const settings = getSiteSettings();
+  const navItems = getNavigationMenu();
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -63,6 +62,7 @@ export default function RootLayout({
         '@id': 'https://tefpc.or.tz/#organization',
         name: 'Tanzania Economic and Financial Policy Consultancy (TEFPC)',
         url: 'https://tefpc.or.tz',
+        description: 'Independent economic research, financial policy evaluation, and advisory consultancy.',
         address: {
           '@type': 'PostalAddress',
           streetAddress: 'Simu 4 Street, Makunganya Road, Rita Tower, 15th Floor',
@@ -79,7 +79,7 @@ export default function RootLayout({
           '@id': 'https://tefpc.or.tz/#organization',
         },
         image: 'https://tefpc.or.tz/portrait-dr-hamis-simba-card.jpg',
-        url: 'https://tefpc.or.tz/about',
+        url: 'https://tefpc.or.tz/about#leadership',
         knowsAbout: [
           'Economic Policy and Analysis',
           'Economic Modelling',
@@ -101,11 +101,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col bg-[#F7F5EF] text-[#192B2A]">
-        <Header
-          researcherName={settings.researcher_name}
-          professionalTitle={settings.professional_title}
-        />
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-8 sm:py-12">
+        <Header navItems={navItems} />
+        <main className="flex-1 w-full flex flex-col">
           {children}
         </main>
         <Footer settings={settings} />

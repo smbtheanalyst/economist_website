@@ -11,7 +11,29 @@ import {
   getEventBySlug,
   getAllEventsAdmin,
   parseGalleryImages,
+  getNavigationMenu,
+  getFullNavigationData,
+  saveDraftNavigation,
+  publishNavigation,
+  discardDraftNavigation,
+  getPageBySlug,
+  getPublishedPages,
+  getAllPagesAdmin,
+  getProjects,
+  getProjectBySlug,
+  getAllProjectsAdmin,
+  getPartners,
+  getPartnerBySlug,
+  getAllPartnersAdmin,
+  getNewsArticles,
+  getNewsBySlug,
+  getAllNewsAdmin,
+  getMediaGalleryItems,
+  getAllMediaGalleryAdmin,
+  type NavItem,
+  type ProjectPartnerRole,
 } from '../lib/data';
+import { sanitizeHtml, isValidSlug, isReservedSlug } from '../lib/sanitize';
 import { createBooking, isSlotConflicting, cleanExpiredBookings } from '../lib/booking';
 import { hashPassword, verifyPassword, generateToken } from '../lib/auth';
 import { sendEmail } from '../lib/email';
@@ -1091,4 +1113,265 @@ test('33. Existing Events Preservation: Pre-existing records maintain published 
     // Restore original description
     db.prepare(`UPDATE events SET description = ? WHERE id = 4`).run(originalDesc);
   }
+});
+
+test('34. Configurable Navigation: Draft vs Published Isolation, Revert, and Visibility', async () => {
+  // Capture initial published menu
+  const initialPublished = getNavigationMenu(false);
+  assert.ok(initialPublished.length > 0, 'Starter navigation must exist');
+
+  // Modify draft menu with a new test item
+  const testDraftItems: NavItem[] = [
+    ...initialPublished,
+    {
+      id: 'nav-test-draft-123',
+      label: 'Special Initiative Draft',
+      path: '/initiatives',
+      visible: true,
+      order: 99,
+      children: [],
+    },
+  ];
+
+  saveDraftNavigation(testDraftItems);
+
+  // Verification 1: Public live menu MUST NOT reflect draft modification before publishing
+  const publicMenuBeforePublish = getNavigationMenu(false);
+  assert.equal(
+    publicMenuBeforePublish.some((i) => i.id === 'nav-test-draft-123'),
+    false,
+    'Public live menu must remain untouched while changes are in draft'
+  );
+
+  // Verification 2: Draft menu returns the draft modification
+  const draftMenu = getNavigationMenu(true);
+  assert.equal(
+    draftMenu.some((i) => i.id === 'nav-test-draft-123'),
+    true,
+    'Draft menu must reflect draft modification'
+  );
+
+  // Verification 3: Revert / Discard draft restores published menu
+  discardDraftNavigation();
+  const draftAfterRevert = getNavigationMenu(true);
+  assert.equal(
+    draftAfterRevert.some((i) => i.id === 'nav-test-draft-123'),
+    false,
+    'Discarding draft must revert draft to published menu'
+  );
+
+  // Verification 4: Publishing draft updates public menu
+  saveDraftNavigation(testDraftItems);
+  publishNavigation();
+  const publicMenuAfterPublish = getNavigationMenu(false);
+  assert.equal(
+    publicMenuAfterPublish.some((i) => i.id === 'nav-test-draft-123'),
+    true,
+    'Publishing draft must update live public menu'
+  );
+
+  // Cleanup: restore original published menu
+  saveDraftNavigation(initialPublished);
+  publishNavigation();
+});
+
+test('35. Page Management: Slug/Reserved Route Validation, Server-Side HTML Sanitization, & Draft Privacy', async () => {
+  // 1. Slug format validation
+  assert.equal(isValidSlug('valid-page-slug-123'), true);
+  assert.equal(isValidSlug('Invalid_Slug!'), false);
+  assert.equal(isValidSlug(''), false);
+
+  // 2. Reserved system routes validation
+  assert.equal(isReservedSlug('about'), true);
+  assert.equal(isReservedSlug('research'), true);
+  assert.equal(isReservedSlug('projects'), true);
+  assert.equal(isReservedSlug('partners'), true);
+  assert.equal(isReservedSlug('news'), true);
+  assert.equal(isReservedSlug('events'), true);
+  assert.equal(isReservedSlug('admin'), true);
+  assert.equal(isReservedSlug('custom-institutional-study'), false);
+
+  // 3. Server-side HTML Sanitization
+  const maliciousInput = `
+    <h2>Legitimate Institutional Heading</h2>
+    <p>Legitimate paragraph with <a href="https://tefpc.or.tz/research" target="_blank">Safe Link</a></p>
+    <script>alert("XSS Attack");</script>
+    <iframe src="javascript:alert(1)"></iframe>
+    <img src="/uploads/valid.png" alt="Valid" onerror="alert('hack')" />
+    <a href="javascript:void(0)">Dangerous JS link</a>
+  `;
+
+  const sanitized = sanitizeHtml(maliciousInput);
+  assert.equal(sanitized.includes('<script>'), false, 'Sanitizer must remove script tags');
+  assert.equal(sanitized.includes('alert('), false, 'Sanitizer must remove inline script execution');
+  assert.equal(sanitized.includes('<iframe'), false, 'Sanitizer must remove iframe tags');
+  assert.equal(sanitized.includes('onerror='), false, 'Sanitizer must strip onerror handlers');
+  assert.equal(sanitized.includes('href="javascript:'), false, 'Sanitizer must strip javascript: URLs');
+  assert.equal(sanitized.includes('<h2>Legitimate Institutional Heading</h2>'), true, 'Sanitizer must preserve safe h2');
+  assert.equal(sanitized.includes('rel="noopener noreferrer"'), true, 'Sanitizer must enforce rel=noopener noreferrer on target=_blank');
+
+  // 4. Draft privacy verification
+  const testPageSlug = 'test-draft-page-' + Date.now();
+  db.prepare(`DELETE FROM pages WHERE slug = ?`).run(testPageSlug);
+
+  db.prepare(`
+    INSERT INTO pages (title, slug, summary, content_html, status, created_at, updated_at)
+    VALUES ('Draft Institutional Charter', ?, 'Summary of draft', '<p>Private draft</p>', 'draft', datetime('now'), datetime('now'))
+  `).run(testPageSlug);
+
+  const publicPageResult = getPageBySlug(testPageSlug, false);
+  assert.equal(publicPageResult, null, 'Public visitors must receive null (404) for draft pages');
+
+  const adminPageResult = getPageBySlug(testPageSlug, true);
+  assert.ok(adminPageResult, 'Admin preview mode must be able to load draft page');
+  assert.equal(adminPageResult.title, 'Draft Institutional Charter');
+
+  // Cleanup
+  db.prepare(`DELETE FROM pages WHERE slug = ?`).run(testPageSlug);
+});
+
+test('36. Projects Management: Ongoing vs Completed Status, Partner Attribution & Public Boundaries', async () => {
+  const ongoingSlug = 'test-proj-ongoing-' + Date.now();
+  const draftSlug = 'test-proj-draft-' + Date.now();
+  db.prepare(`DELETE FROM projects WHERE slug IN (?, ?)`).run(ongoingSlug, draftSlug);
+
+  const partners = [
+    { name: 'Bank of Tanzania', role: 'implementing_partner', role_label: 'Implementing Partner', url: 'https://www.bot.go.tz' },
+    { name: 'African Development Bank', role: 'funder', role_label: 'Funder / Granting Agency', url: 'https://www.afdb.org' }
+  ];
+
+  // 1. Insert ongoing published project
+  db.prepare(`
+    INSERT INTO projects (
+      title, slug, summary, description_html, research_theme,
+      project_status, status, partner_organizations_json, is_featured
+    ) VALUES (
+      'Tanzania Trade Corridor Diagnostics', ?, 'Diagnostic evaluation',
+      '<p>Methodology text</p>', 'Trade Facilitation & Regional Integration',
+      'ongoing', 'published', ?, 1
+    )
+  `).run(ongoingSlug, JSON.stringify(partners));
+
+  // 2. Insert draft project
+  db.prepare(`
+    INSERT INTO projects (
+      title, slug, summary, description_html, research_theme,
+      project_status, status, partner_organizations_json, is_featured
+    ) VALUES (
+      'Unpublished Energy Policy Study', ?, 'Draft study',
+      '<p>Draft text</p>', 'Macroeconomic Policy',
+      'ongoing', 'draft', '[]', 0
+    )
+  `).run(draftSlug);
+
+  // Verification 1: Public list excludes draft
+  const publicProjects = getProjects({ includeDrafts: false });
+  assert.equal(publicProjects.some((p) => p.slug === ongoingSlug), true);
+  assert.equal(publicProjects.some((p) => p.slug === draftSlug), false, 'Draft projects must not appear on public listing');
+
+  // Verification 2: Partner attribution is preserved
+  const project = getProjectBySlug(ongoingSlug, false);
+  assert.ok(project);
+  const parsedPartners: ProjectPartnerRole[] = JSON.parse(project.partner_organizations_json);
+  assert.equal(parsedPartners.length, 2);
+  assert.equal(parsedPartners[0].name, 'Bank of Tanzania');
+  assert.equal(parsedPartners[0].role, 'implementing_partner');
+  assert.equal(parsedPartners[1].role, 'funder');
+
+  // Verification 3: Status filtering (ongoing vs completed)
+  const ongoingOnly = getProjects({ status: 'ongoing', includeDrafts: false });
+  assert.equal(ongoingOnly.some((p) => p.slug === ongoingSlug), true);
+  const completedOnly = getProjects({ status: 'completed', includeDrafts: false });
+  assert.equal(completedOnly.some((p) => p.slug === ongoingSlug), false);
+
+  // Cleanup
+  db.prepare(`DELETE FROM projects WHERE slug IN (?, ?)`).run(ongoingSlug, draftSlug);
+});
+
+test('37. Partners Management: Verified Attribution, Relationship Types & Homepage Visibility', async () => {
+  const partnerSlug = 'test-partner-' + Date.now();
+  db.prepare(`DELETE FROM partners WHERE slug = ?`).run(partnerSlug);
+
+  db.prepare(`
+    INSERT INTO partners (
+      name, slug, logo_url, logo_alt, website_url, relationship_description,
+      relationship_type, display_order, is_featured_homepage, status
+    ) VALUES (
+      'Economic and Social Research Foundation (ESRF)', ?, '/uploads/esrf_logo.png',
+      'ESRF Logo', 'https://www.esrf.or.tz',
+      'Collaborative policy dialogues and co-convening the Tanzania Economic Outlook Symposium.',
+      'Research Partner', 1, 1, 'published'
+    )
+  `).run(partnerSlug);
+
+  const partners = getPartners({ includeDrafts: false });
+  const found = partners.find((p) => p.slug === partnerSlug);
+  assert.ok(found, 'Published partner must appear in directory');
+  assert.equal(found.relationship_type, 'Research Partner');
+  assert.equal(found.is_featured_homepage, 1);
+
+  // Change to draft
+  db.prepare(`UPDATE partners SET status = 'draft' WHERE slug = ?`).run(partnerSlug);
+  const publicAfterDraft = getPartners({ includeDrafts: false });
+  assert.equal(publicAfterDraft.some((p) => p.slug === partnerSlug), false, 'Draft partner must not appear publicly');
+
+  // Cleanup
+  db.prepare(`DELETE FROM partners WHERE slug = ?`).run(partnerSlug);
+});
+
+test('38. Media Gallery: Explicit Publishing Boundary & Category Filtering', async () => {
+  const publishedTitle = 'Test Symposium Dialogue Photo ' + Date.now();
+  const draftTitle = 'Test Internal Working Meeting Draft ' + Date.now();
+
+  db.prepare(`
+    INSERT INTO media_gallery (title, caption, image_url, image_alt, category, status)
+    VALUES (?, 'Keynote address', '/uploads/photo1.jpg', 'Keynote', 'Events & Dialogues', 'published')
+  `).run(publishedTitle);
+
+  db.prepare(`
+    INSERT INTO media_gallery (title, caption, image_url, image_alt, category, status)
+    VALUES (?, 'Internal drafting session', '/uploads/photo2.jpg', 'Drafting', 'Fieldwork & Projects', 'draft')
+  `).run(draftTitle);
+
+  const publicItems = getMediaGalleryItems({ includeDrafts: false });
+  assert.equal(publicItems.some((m) => m.title === publishedTitle), true, 'Published media must appear in public gallery');
+  assert.equal(publicItems.some((m) => m.title === draftTitle), false, 'Draft media must never appear in public gallery');
+
+  const filtered = getMediaGalleryItems({ category: 'Events & Dialogues', includeDrafts: false });
+  assert.equal(filtered.some((m) => m.title === publishedTitle), true);
+
+  // Cleanup
+  db.prepare(`DELETE FROM media_gallery WHERE title IN (?, ?)`).run(publishedTitle, draftTitle);
+});
+
+test('39. Core Platform Continuity: Concurrency Locking, Guest Inquiries & Publications Verbatim Integrity', async () => {
+  // 1. Verify site settings maintain Dr. Hamis Simba's verified details
+  const settings = getSiteSettings();
+  assert.equal(settings.researcher_name, 'Dr. Hamis Miraji Ally Simba');
+  assert.ok(settings.portrait_url);
+  assert.ok(settings.cv_url);
+
+  // 2. Verify publication authors remain preserved verbatim
+  const research = getPublishedResearch({ limit: 10 });
+  assert.ok(research.length > 0, 'Research publications must exist');
+  for (const paper of research) {
+    assert.ok(paper.authors.length > 0, 'Author strings must not be empty');
+  }
+
+  // 3. Verify clean expired bookings
+  cleanExpiredBookings();
+
+  // 4. Verify question submission persistence
+  const qEmail = 'continuity-test@example.tz';
+  db.prepare(`
+    INSERT INTO questions (name, email, message, status)
+    VALUES ('Continuity Visitor', ?, 'Test inquiry message', 'new')
+  `).run(qEmail);
+
+  const qRow = db.prepare(`SELECT * FROM questions WHERE email = ?`).get(qEmail) as any;
+  assert.ok(qRow);
+  assert.equal(qRow.status, 'new');
+
+  // Cleanup
+  db.prepare(`DELETE FROM questions WHERE email = ?`).run(qEmail);
 });

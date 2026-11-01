@@ -4,9 +4,13 @@ import path from 'node:path';
 
 const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const outputDir = path.resolve('./screenshots');
+const artifactDir = 'C:\\Users\\PC\\.gemini\\antigravity\\brain\\fa5b768a-a18e-422f-bc0d-ea1d26b258bc';
 
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
+}
+if (!fs.existsSync(artifactDir)) {
+  fs.mkdirSync(artifactDir, { recursive: true });
 }
 
 function safeWrite(filePath, buffer) {
@@ -24,6 +28,14 @@ function safeWrite(filePath, buffer) {
   }
 }
 
+function saveToBoth(filename, buffer) {
+  const localPath = path.join(outputDir, filename);
+  safeWrite(localPath, buffer);
+  const artifactPath = path.join(artifactDir, filename);
+  safeWrite(artifactPath, buffer);
+  console.log(`Saved: ${filename} (local & artifact)`);
+}
+
 async function capture() {
   console.log('📸 Launching Edge headless browser...');
   const browser = await puppeteer.launch({
@@ -34,33 +46,65 @@ async function capture() {
 
   const page = await browser.newPage();
 
-  const captures = [
-    { url: 'http://localhost:3000', name: 'homepage-desktop.png', width: 1280, height: 900 },
-    { url: 'http://localhost:3000', name: 'homepage-mobile-360px.png', width: 360, height: 740 },
-    { url: 'http://localhost:3000/insights/addressing-income-inequality-africa-fiscal-monetary', name: 'article-desktop.png', width: 1280, height: 900 },
-    { url: 'http://localhost:3000/insights/addressing-income-inequality-africa-fiscal-monetary', name: 'article-mobile-360px.png', width: 360, height: 740 },
-    { url: 'http://localhost:3000/consultation', name: 'booking-flow-desktop.png', width: 1280, height: 900 },
-    { url: 'http://localhost:3000/consultation', name: 'booking-flow-mobile-360px.png', width: 360, height: 740 },
-    { url: 'http://localhost:3000/admin/login', name: 'admin-login.png', width: 1280, height: 800 },
+  // 1. Public Pages (Desktop 1280x900 & Mobile 360x740)
+  const publicPages = [
+    { url: 'http://localhost:3000', nameBase: 'institutional-homepage' },
+    { url: 'http://localhost:3000/about', nameBase: 'about-institutional' },
+    { url: 'http://localhost:3000/projects', nameBase: 'projects-listing' },
+    { url: 'http://localhost:3000/partners', nameBase: 'partners-listing' },
+    { url: 'http://localhost:3000/partners/partner-with-us', nameBase: 'partner-with-us' },
+    { url: 'http://localhost:3000/news', nameBase: 'news-listing' },
+    { url: 'http://localhost:3000/news/media-gallery', nameBase: 'media-gallery' },
+    { url: 'http://localhost:3000/consultation', nameBase: 'consultation-booking' },
   ];
 
-  for (const item of captures) {
-    console.log(`Capturing ${item.name} (${item.width}x${item.height})...`);
-    await page.setViewport({ width: item.width, height: item.height });
+  for (const item of publicPages) {
+    // Desktop
+    console.log(`Capturing Desktop: ${item.nameBase}...`);
+    await page.setViewport({ width: 1280, height: 900 });
     await page.goto(item.url, { waitUntil: 'networkidle0', timeout: 30000 });
-    const filePath = path.join(outputDir, item.name);
-    const buffer = await page.screenshot({ fullPage: false });
-    safeWrite(filePath, buffer);
-    console.log(`Saved: ${filePath}`);
+    let buf = await page.screenshot({ fullPage: false });
+    saveToBoth(`${item.nameBase}-desktop.png`, buf);
+
+    // Mobile
+    console.log(`Capturing Mobile (360px): ${item.nameBase}...`);
+    await page.setViewport({ width: 360, height: 740 });
+    await page.goto(item.url, { waitUntil: 'networkidle0', timeout: 30000 });
+    buf = await page.screenshot({ fullPage: false });
+    saveToBoth(`${item.nameBase}-mobile-360px.png`, buf);
   }
 
-  // Also capture authenticated admin dashboard using an ephemeral session
-  console.log('Generating ephemeral session to capture Admin Dashboard...');
+  // 2. Desktop Navigation Dropdown in action
+  console.log('Capturing Desktop Navigation Dropdown...');
+  await page.setViewport({ width: 1280, height: 900 });
+  await page.goto('http://localhost:3000', { waitUntil: 'networkidle0', timeout: 30000 });
+  // Hover over the first dropdown trigger if exists
+  const dropdownButton = await page.$('button[aria-haspopup="true"]');
+  if (dropdownButton) {
+    await dropdownButton.hover();
+    await new Promise(r => setTimeout(r, 600)); // wait for transition
+    const navBuf = await page.screenshot({ fullPage: false });
+    saveToBoth('navigation-dropdown-desktop.png', navBuf);
+  }
+
+  // 3. Mobile Navigation Drawer in action
+  console.log('Capturing Mobile Navigation Drawer...');
+  await page.setViewport({ width: 360, height: 740 });
+  await page.goto('http://localhost:3000', { waitUntil: 'networkidle0', timeout: 30000 });
+  const mobileMenuToggle = await page.$('button[aria-label="Open menu"]');
+  if (mobileMenuToggle) {
+    await mobileMenuToggle.click();
+    await new Promise(r => setTimeout(r, 600));
+    const drawerBuf = await page.screenshot({ fullPage: false });
+    saveToBoth('navigation-mobile-drawer.png', drawerBuf);
+  }
+
+  // 4. Authenticated Admin Pages
+  console.log('Generating ephemeral session to capture Admin Portal...');
   const { DatabaseSync } = await import('node:sqlite');
   const crypto = await import('node:crypto');
   const db = new DatabaseSync('./data/economist.db');
   
-  // Create or verify an ephemeral admin record
   let adminUser = db.prepare(`SELECT id FROM admin_users LIMIT 1`).get();
   let createdEphemeralUser = false;
   let adminId = adminUser?.id;
@@ -75,7 +119,6 @@ async function capture() {
   db.prepare(`INSERT INTO admin_sessions (token, admin_id, expires_at) VALUES (?, ?, ?)`).run(ephemeralToken, adminId, expiresAt);
 
   try {
-    await page.setViewport({ width: 1280, height: 900 });
     await page.setCookie({
       name: 'econ_admin_session',
       value: ephemeralToken,
@@ -83,14 +126,26 @@ async function capture() {
       path: '/',
       httpOnly: true,
     });
-    await page.goto('http://localhost:3000/admin', { waitUntil: 'networkidle0', timeout: 30000 });
 
-    const adminDashboardPath = path.join(outputDir, 'admin-dashboard-desktop.png');
-    const adminBuf = await page.screenshot({ fullPage: false });
-    safeWrite(adminDashboardPath, adminBuf);
-    console.log(`Saved: ${adminDashboardPath}`);
+    const adminPages = [
+      { url: 'http://localhost:3000/admin', name: 'admin-dashboard-overview-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin', name: 'admin-dashboard-overview-mobile-360px.png', width: 360, height: 740 },
+      { url: 'http://localhost:3000/admin/navigation', name: 'admin-navigation-editor-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin/pages', name: 'admin-pages-editor-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin/slides', name: 'admin-slideshow-manager-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin/projects', name: 'admin-projects-manager-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin/partners', name: 'admin-partners-manager-desktop.png', width: 1280, height: 900 },
+      { url: 'http://localhost:3000/admin/insights', name: 'admin-news-insights-manager-desktop.png', width: 1280, height: 900 },
+    ];
+
+    for (const item of adminPages) {
+      console.log(`Capturing ${item.name} (${item.width}x${item.height})...`);
+      await page.setViewport({ width: item.width, height: item.height });
+      await page.goto(item.url, { waitUntil: 'networkidle0', timeout: 30000 });
+      const buf = await page.screenshot({ fullPage: false });
+      saveToBoth(item.name, buf);
+    }
   } finally {
-    // Clean up ephemeral session and user
     db.prepare(`DELETE FROM admin_sessions WHERE token = ?`).run(ephemeralToken);
     if (createdEphemeralUser) {
       db.prepare(`DELETE FROM admin_users WHERE username = 'ephemeral_verify'`).run();
@@ -98,7 +153,7 @@ async function capture() {
   }
 
   await browser.close();
-  console.log('🎉 All requested screenshots captured successfully!');
+  console.log('🎉 All institutional website transformation screenshots captured successfully!');
 }
 
 capture().catch((err) => {

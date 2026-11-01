@@ -254,7 +254,160 @@ function initSchema(db: DatabaseSync) {
       count INTEGER NOT NULL DEFAULT 1,
       expires_at INTEGER NOT NULL
     );
+
+    -- Institutional Pages
+    CREATE TABLE IF NOT EXISTS pages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      content_html TEXT NOT NULL DEFAULT '',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      seo_title TEXT DEFAULT '',
+      seo_description TEXT DEFAULT '',
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      published_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Configurable Navigation Menus (Separate Draft and Published States)
+    CREATE TABLE IF NOT EXISTS navigation_menus (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      published_items_json TEXT NOT NULL DEFAULT '[]',
+      draft_items_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Homepage Activity Slides
+    CREATE TABLE IF NOT EXISTS homepage_slides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      caption TEXT DEFAULT '',
+      image_url TEXT NOT NULL,
+      image_alt TEXT NOT NULL,
+      activity_date TEXT DEFAULT '',
+      activity_location TEXT DEFAULT '',
+      link_url TEXT DEFAULT '',
+      link_text TEXT DEFAULT '',
+      focal_point TEXT NOT NULL DEFAULT 'center',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Institutional & Policy Projects
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL,
+      description_html TEXT NOT NULL DEFAULT '',
+      research_theme TEXT NOT NULL DEFAULT '',
+      project_status TEXT NOT NULL CHECK(project_status IN ('ongoing', 'completed')) DEFAULT 'ongoing',
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      location TEXT DEFAULT '',
+      objectives_json TEXT NOT NULL DEFAULT '[]',
+      activities_json TEXT NOT NULL DEFAULT '[]',
+      outputs_json TEXT NOT NULL DEFAULT '[]',
+      outcomes_json TEXT NOT NULL DEFAULT '[]',
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
+      related_research_ids_json TEXT NOT NULL DEFAULT '[]',
+      related_news_ids_json TEXT NOT NULL DEFAULT '[]',
+      partner_organizations_json TEXT NOT NULL DEFAULT '[]',
+      is_featured INTEGER NOT NULL DEFAULT 0,
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Institutional Partners
+    CREATE TABLE IF NOT EXISTS partners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      logo_url TEXT DEFAULT '',
+      logo_alt TEXT DEFAULT '',
+      website_url TEXT DEFAULT '',
+      relationship_description TEXT NOT NULL DEFAULT '',
+      relationship_type TEXT NOT NULL DEFAULT 'Institutional Partner',
+      related_project_ids_json TEXT NOT NULL DEFAULT '[]',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_featured_homepage INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Institutional News & Policy Dialogues
+    CREATE TABLE IF NOT EXISTS news_articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      content_html TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'Institutional News',
+      published_date TEXT NOT NULL DEFAULT (date('now')),
+      cover_image_url TEXT DEFAULT '',
+      cover_image_alt TEXT DEFAULT '',
+      gallery_images_json TEXT NOT NULL DEFAULT '[]',
+      related_project_ids_json TEXT NOT NULL DEFAULT '[]',
+      related_event_ids_json TEXT NOT NULL DEFAULT '[]',
+      is_featured INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'draft',
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Explicitly Published Media Gallery Items
+    CREATE TABLE IF NOT EXISTS media_gallery (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      caption TEXT DEFAULT '',
+      image_url TEXT NOT NULL,
+      image_alt TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Events & Dialogues',
+      source_type TEXT NOT NULL DEFAULT 'manual',
+      source_id INTEGER,
+      event_date TEXT DEFAULT '',
+      location TEXT DEFAULT '',
+      display_order INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK(status IN ('draft', 'published')) DEFAULT 'published',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  // Safe incremental migration for site_settings institutional fields
+  const settingsCols = db.prepare(`PRAGMA table_info(site_settings)`).all() as Array<{ name: string }>;
+  const settingsColSet = new Set(settingsCols.map((c) => c.name));
+
+  if (!settingsColSet.has('institution_name')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN institution_name TEXT NOT NULL DEFAULT 'Tanzania Economic and Financial Policy Consultancy (TEFPC)'`);
+  }
+  if (!settingsColSet.has('institution_short_name')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN institution_short_name TEXT NOT NULL DEFAULT 'TEFPC'`);
+  }
+  if (!settingsColSet.has('institution_tagline')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN institution_tagline TEXT NOT NULL DEFAULT 'Independent Economic & Financial Policy Research'`);
+  }
+  if (!settingsColSet.has('mission_statement')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN mission_statement TEXT NOT NULL DEFAULT ''`);
+  }
+  if (!settingsColSet.has('vision_statement')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN vision_statement TEXT NOT NULL DEFAULT ''`);
+  }
+  if (!settingsColSet.has('core_values_json')) {
+    db.exec(`ALTER TABLE site_settings ADD COLUMN core_values_json TEXT NOT NULL DEFAULT '[]'`);
+  }
 
   // Safe incremental migration for events table
   const eventCols = db.prepare(`PRAGMA table_info(events)`).all() as Array<{ name: string }>;
@@ -277,5 +430,89 @@ function initSchema(db: DatabaseSync) {
   if (!colSet.has('organizer_type')) {
     db.exec(`ALTER TABLE events ADD COLUMN organizer_type TEXT NOT NULL DEFAULT 'tefpc'`);
     db.exec(`UPDATE events SET organizer_type = CASE WHEN is_organized_by_me = 1 THEN 'tefpc' ELSE 'external' END`);
+  }
+
+  // Initialize navigation_menus row with default starter menus if not present
+  const navRow = db.prepare(`SELECT id FROM navigation_menus WHERE id = 1`).get();
+  if (!navRow) {
+    const defaultNav = [
+      {
+        id: 'nav-home',
+        label: 'Home',
+        path: '/',
+        is_external: false,
+        visible: true,
+        order: 0,
+        children: []
+      },
+      {
+        id: 'nav-about',
+        label: 'About',
+        path: '/about',
+        is_external: false,
+        visible: true,
+        order: 1,
+        children: [
+          { id: 'nav-about-who', label: 'Who We Are', path: '/about', is_external: false, visible: true, order: 0 },
+          { id: 'nav-about-mission', label: 'Mission & Vision', path: '/about#mission', is_external: false, visible: true, order: 1 },
+          { id: 'nav-about-team', label: 'Leadership & Team', path: '/about#leadership', is_external: false, visible: true, order: 2 }
+        ]
+      },
+      {
+        id: 'nav-research',
+        label: 'Research',
+        path: '/research',
+        is_external: false,
+        visible: true,
+        order: 2,
+        children: [
+          { id: 'nav-res-areas', label: 'Research Areas', path: '/research', is_external: false, visible: true, order: 0 },
+          { id: 'nav-res-pubs', label: 'Publications', path: '/research#publications', is_external: false, visible: true, order: 1 },
+          { id: 'nav-res-briefs', label: 'Policy Briefs', path: '/research?type=Policy+Brief', is_external: false, visible: true, order: 2 }
+        ]
+      },
+      {
+        id: 'nav-projects',
+        label: 'Projects',
+        path: '/projects',
+        is_external: false,
+        visible: true,
+        order: 3,
+        children: [
+          { id: 'nav-proj-ongoing', label: 'Ongoing Projects', path: '/projects?status=ongoing', is_external: false, visible: true, order: 0 },
+          { id: 'nav-proj-completed', label: 'Completed Projects', path: '/projects?status=completed', is_external: false, visible: true, order: 1 }
+        ]
+      },
+      {
+        id: 'nav-partners',
+        label: 'Partners',
+        path: '/partners',
+        is_external: false,
+        visible: true,
+        order: 4,
+        children: [
+          { id: 'nav-part-list', label: 'Our Partners', path: '/partners', is_external: false, visible: true, order: 0 },
+          { id: 'nav-part-join', label: 'Partner With Us', path: '/partners/partner-with-us', is_external: false, visible: true, order: 1 }
+        ]
+      },
+      {
+        id: 'nav-news',
+        label: 'News',
+        path: '/news',
+        is_external: false,
+        visible: true,
+        order: 5,
+        children: [
+          { id: 'nav-news-latest', label: 'Latest News', path: '/news', is_external: false, visible: true, order: 0 },
+          { id: 'nav-news-events', label: 'Events', path: '/events', is_external: false, visible: true, order: 1 },
+          { id: 'nav-news-gallery', label: 'Media Gallery', path: '/news/media-gallery', is_external: false, visible: true, order: 2 }
+        ]
+      }
+    ];
+    const defaultNavJson = JSON.stringify(defaultNav);
+    db.prepare(`
+      INSERT INTO navigation_menus (id, published_items_json, draft_items_json, updated_at)
+      VALUES (1, ?, ?, datetime('now'))
+    `).run(defaultNavJson, defaultNavJson);
   }
 }

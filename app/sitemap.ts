@@ -8,9 +8,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = [
     '',
     '/about',
-    '/insights',
     '/research',
+    '/projects',
+    '/partners',
+    '/partners/partner-with-us',
+    '/news',
+    '/news/media-gallery',
     '/events',
+    '/insights',
     '/ask',
     '/consultation',
     '/privacy',
@@ -19,6 +24,33 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: route === '' ? 1.0 : 0.8,
+  }));
+
+  // Published Custom Pages
+  const pages = db.prepare(`SELECT slug, updated_at FROM pages WHERE status = 'published'`).all() as { slug: string; updated_at: string }[];
+  const pageRoutes = pages.map((p) => ({
+    url: `${siteUrl}/${p.slug}`,
+    lastModified: new Date(p.updated_at),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+
+  // Published Projects
+  const projects = db.prepare(`SELECT slug, updated_at FROM projects WHERE status = 'published'`).all() as { slug: string; updated_at: string }[];
+  const projectRoutes = projects.map((p) => ({
+    url: `${siteUrl}/projects/${p.slug}`,
+    lastModified: new Date(p.updated_at),
+    changeFrequency: 'weekly' as const,
+    priority: 0.8,
+  }));
+
+  // Published News
+  const news = db.prepare(`SELECT slug, updated_at FROM news_articles WHERE status = 'published'`).all() as { slug: string; updated_at: string }[];
+  const newsRoutes = news.map((n) => ({
+    url: `${siteUrl}/news/${n.slug}`,
+    lastModified: new Date(n.updated_at),
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
   }));
 
   // Published Insights
@@ -36,7 +68,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${siteUrl}/research/${r.slug}`,
     lastModified: new Date(r.updated_at),
     changeFrequency: 'monthly' as const,
-    priority: 0.7,
+    priority: 0.8,
   }));
 
   // Published Events
@@ -48,5 +80,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...insightRoutes, ...researchRoutes, ...eventRoutes];
+  return [
+    ...staticRoutes,
+    ...pageRoutes,
+    ...projectRoutes,
+    ...newsRoutes,
+    ...insightRoutes,
+    ...researchRoutes,
+    ...eventRoutes,
+  ];
 }
